@@ -94,8 +94,10 @@ showExpr (Float float) = T.pack $ show float
 showExpr (String text) = T.concat ["\"", text, "\""]
 showExpr (Charlist text) = T.concat ["'", text, "'"]
 showExpr (Variable name) = name
-showExpr (Tuple [expr1, expr2]) = T.concat ["{", showExpr expr1, ", ", showExpr expr2, "}"] -- WAT?
-showExpr (Tuple exprs) = T.concat ["{:{}, [], [", T.intercalate ", " $ showExpr <$> exprs, "]"]
+showExpr (Tuple [expr1, expr2]) =
+  T.concat ["{", showExpr expr1, ", ", showExpr expr2, "}"] -- WAT?
+showExpr (Tuple exprs) =
+  T.concat ["{:{}, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (List exprs) =
   T.concat ["[", T.intercalate ", " $ showExpr <$> exprs, "]"]
 showExpr (Map keyValues) =
@@ -118,7 +120,13 @@ showExpr (Struct alias' keyValues) =
     ]
 showExpr (QualifiedCall alias' name args) =
   T.concat
-    [showExpr alias', name, "(", T.intercalate ", " $ showExpr <$> args, ")"]
+    [ showExpr alias'
+    , "."
+    , name
+    , "("
+    , T.intercalate ", " $ showExpr <$> args
+    , ")"
+    ]
 showExpr (NonQualifiedCall name args) =
   T.concat [name, "(", T.intercalate ", " $ showExpr <$> args, ")"]
 
@@ -221,11 +229,20 @@ quotedAtom :: Parser String
 quotedAtom = lexeme $ C.char ':' *> (charlist <|> string)
 
 alias :: Parser [String]
-alias = lexeme $ aliasChunk `sepBy1` (C.char '.')
+alias = lexeme $ (:) <$> aliasStart <*> many (try aliasChunk)
+
+aliasStart :: Parser String
+aliasStart =
+  (:) <$> C.upperChar <*> many (C.letterChar <|> C.digitChar <|> C.char '_')
 
 aliasChunk :: Parser String
 aliasChunk =
-  (:) <$> C.upperChar <*> many (C.letterChar <|> C.digitChar <|> C.char '_')
+  (:) <$> dotUpper <*> many (C.letterChar <|> C.digitChar <|> C.char '_')
+  where
+    dotUpper = do
+      void $ C.char '.'
+      upper <- C.upperChar
+      return upper
 
 --
 -- Parser
