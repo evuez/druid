@@ -70,7 +70,7 @@ data EExpr
                   , args :: [EExpr] }
   | NonQualifiedCall { name :: T.Text
                      , args :: [EExpr] }
-  deriving (Typeable)
+  deriving (Typeable, Eq)
 
 type Env = M.Map T.Text EExpr
 
@@ -221,7 +221,7 @@ quotedAtom :: Parser String
 quotedAtom = lexeme $ C.char ':' *> (charlist <|> string)
 
 alias :: Parser [String]
-alias = lexeme $ aliasChunk `sepBy` (C.char '.')
+alias = lexeme $ aliasChunk `sepBy1` (C.char '.')
 
 aliasChunk :: Parser String
 aliasChunk =
@@ -272,7 +272,7 @@ parseStruct :: Parser EExpr
 parseStruct = do
   void $ symbol "%"
   alias' <- parseAlias
-  Struct alias' <$> braces (commaSeparated keyValue)
+  Struct alias' <$> braces (commaSeparated keyValue) -- Should only allow atoms for keys, I think?
 
 parseAtom :: Parser EExpr
 parseAtom = Atom . T.pack <$!> (unquotedAtom <|> quotedAtom)
