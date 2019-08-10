@@ -50,3 +50,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - druid
+    - hspec
+    - hspec-megaparsec

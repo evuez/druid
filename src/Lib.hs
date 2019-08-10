@@ -292,7 +292,7 @@ parseStruct = do
   Struct alias' <$> braces (commaSeparated keyValue) -- Should only allow atoms for keys, I think?
 
 parseAtom :: Parser EExpr
-parseAtom = Atom . T.pack <$!> (unquotedAtom <|> quotedAtom)
+parseAtom = Atom . T.pack <$!> (try unquotedAtom <|> quotedAtom)
 
 parseString :: Parser EExpr
 parseString = String . T.pack <$!> string
