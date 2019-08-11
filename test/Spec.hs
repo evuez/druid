@@ -69,6 +69,9 @@ main =
       it "parses a quoted atom" $ do
         parse parseAtom "" ":\"quoted atom!\"" `shouldParse` E.Atom "quoted atom!"
 
+      it "parses a ' quoted atom" $ do
+        parse parseAtom "" ":'quoted atom!'" `shouldParse` E.Atom "quoted atom!"
+
       it "parses a string" $ do
         parse parseString "" "\"a string\"" `shouldParse` E.String "a string"
 
@@ -92,15 +95,68 @@ main =
       it "parses a float" $ do
         parse parseFloat "" "1234.5678" `shouldParse` E.Float 1234.5678
 
-      it "parses a non-qualified call" $ do
-        parse parseNonQualifiedCall "" "func(1, 2)" `shouldParse`
+      it "parses a /2 non-qualified call" $ do
+        parse parseNonQualifiedCall "" "func!(1, 2)" `shouldParse`
           E.NonQualifiedCall
-          {E.name = "func", E.args = [E.Integer 1, E.Integer 2]}
+          {E.name = "func!", E.args = [E.Integer 1, E.Integer 2]}
 
-      it "parses a qualified call" $ do
-        parse parseQualifiedCall "" "Some.Alias.func(1, 2)" `shouldParse`
+      it "parses a /1 non-qualified call" $ do
+        parse parseNonQualifiedCall "" "func!(1)" `shouldParse`
+          E.NonQualifiedCall {E.name = "func!", E.args = [E.Integer 1]}
+
+      it "parses a /0 non-qualified call" $ do
+        parse parseNonQualifiedCall "" "func!()" `shouldParse`
+          E.NonQualifiedCall {E.name = "func!", E.args = []}
+
+      it "parses a spaced non-qualified call" $ do
+        parse parseNonQualifiedCall "" "func! 1, 2" `shouldParse`
+          E.NonQualifiedCall
+          {E.name = "func!", E.args = [E.Integer 1, E.Integer 2]}
+
+      it "parses a /2 qualified call" $ do
+        parse parseQualifiedCall "" "Some.Alias.func!(1, 2)" `shouldParse`
           E.QualifiedCall
           { E.alias' = E.Alias ["Some", "Alias"]
-          , E.name = "func"
+          , E.name = "func!"
+          , E.args = [E.Integer 1, E.Integer 2]
+          }
+
+      it "parses a /1 qualified call" $ do
+        parse parseQualifiedCall "" "Some.Alias.func!(1)" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "func!"
+          , E.args = [E.Integer 1]
+          }
+
+      it "parses a /0 qualified call" $ do
+        parse parseQualifiedCall "" "Some.Alias.func!()" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "func!"
+          , E.args = []
+          }
+
+      it "parses a spaced qualified call" $ do
+        parse parseQualifiedCall "" "Some.Alias.func! 1, 2" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "func!"
+          , E.args = [E.Integer 1, E.Integer 2]
+          }
+
+      it "parses a quoted qualified call" $ do
+        parse parseQualifiedCall "" "Some.Alias.\"a func!\"(1, 2)" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "a func!"
+          , E.args = [E.Integer 1, E.Integer 2]
+          }
+
+      it "parses a ' quoted qualified call" $ do
+        parse parseQualifiedCall "" "Some.Alias.'a func!'(1, 2)" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "a func!"
           , E.args = [E.Integer 1, E.Integer 2]
           }
