@@ -95,7 +95,7 @@ showExpr (String text) = T.concat ["\"", text, "\""]
 showExpr (Charlist text) = T.concat ["'", text, "'"]
 showExpr (Variable name) = name
 showExpr (Tuple [expr1, expr2]) =
-  T.concat ["{", showExpr expr1, ", ", showExpr expr2, "}"] -- WAT?
+  T.concat ["{", showExpr expr1, ", ", showExpr expr2, "}"]
 showExpr (Tuple exprs) =
   T.concat ["{:{}, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (List exprs) =
@@ -221,12 +221,17 @@ unquotedAtomTail =
   (++) <$> many (C.letterChar <|> C.digitChar <|> oneOf ("_@" :: [Char])) <*>
   count' 0 1 (oneOf ("!?" :: [Char]))
 
+unquotedAtomBody :: Parser String
+unquotedAtomBody = (:) <$> unquotedAtomHead <*> unquotedAtomTail
+
 unquotedAtom :: Parser String
-unquotedAtom =
-  lexeme $ C.char ':' *> ((:) <$> unquotedAtomHead <*> unquotedAtomTail)
+unquotedAtom = lexeme $ C.char ':' *> unquotedAtomBody
+
+quotedAtomBody :: Parser String
+quotedAtomBody = charlist <|> string
 
 quotedAtom :: Parser String
-quotedAtom = lexeme $ C.char ':' *> (charlist <|> string)
+quotedAtom = lexeme $ C.char ':' *> quotedAtomBody
 
 alias :: Parser [String]
 alias = lexeme $ (:) <$> aliasStart <*> many (try aliasChunk)
@@ -255,6 +260,19 @@ keyValue = do
   value <- parseExpr
   return (key, value)
 
+keywords :: (EExpr -> EExpr -> b) -> Parser b
+keywords wrapper = do
+  key <- Atom . T.pack <$!> (quotedAtomBody <|> unquotedAtomBody)
+  void $ symbol ":"
+  value <- parseExpr
+  return $ wrapper key value
+
+mapKeywords :: Parser (EExpr, EExpr)
+mapKeywords = keywords (,)
+
+listKeywords :: Parser EExpr
+listKeywords = keywords (\k v -> Tuple [k, v])
+
 parensArgs :: Parser [EExpr]
 parensArgs = between (symbol "(") (symbol ")") (commaSeparated parseExpr)
 
@@ -275,7 +293,10 @@ parseAlias :: Parser EExpr
 parseAlias = Alias <$> fmap T.pack <$> alias
 
 parseList :: Parser EExpr
-parseList = List <$> squareBrackets (commaSeparated parseExpr)
+parseList = List <$> (try regularList <|> keywordList)
+  where
+    regularList = squareBrackets $ commaSeparated parseExpr
+    keywordList = squareBrackets $ commaSeparated listKeywords
 
 parseTuple :: Parser EExpr
 parseTuple = Tuple <$> braces (commaSeparated parseExpr)
@@ -283,13 +304,14 @@ parseTuple = Tuple <$> braces (commaSeparated parseExpr)
 parseMap :: Parser EExpr
 parseMap = do
   void $ symbol "%"
-  Map <$> braces (commaSeparated keyValue)
+  Map <$> braces (try (commaSeparated keyValue) <|> commaSeparated mapKeywords)
 
 parseStruct :: Parser EExpr
 parseStruct = do
   void $ symbol "%"
   alias' <- parseAlias
-  Struct alias' <$> braces (commaSeparated keyValue) -- Should only allow atoms for keys, I think?
+  Struct alias' <$>
+    braces (try (commaSeparated keyValue) <|> commaSeparated mapKeywords) -- Should only allow atoms for keys, I think?
 
 parseAtom :: Parser EExpr
 parseAtom = Atom . T.pack <$!> (try unquotedAtom <|> quotedAtom)
