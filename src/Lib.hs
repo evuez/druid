@@ -233,6 +233,10 @@ quotedAtomBody = charlist <|> string
 quotedAtom :: Parser String
 quotedAtom = lexeme $ C.char ':' *> quotedAtomBody
 
+specialAtom :: Parser String
+specialAtom =
+  lexeme $ T.unpack <$> (symbol "true" <|> symbol "false" <|> symbol "nil")
+
 alias :: Parser [String]
 alias = lexeme $ (:) <$> aliasStart <*> many (try aliasChunk)
 
@@ -253,12 +257,18 @@ aliasChunk =
 -- Parser
 --
 -- Helpers
-keyValue :: Parser (EExpr, EExpr)
-keyValue = do
-  key <- parseExpr
+keyValue :: Parser EExpr -> Parser (EExpr, EExpr)
+keyValue keyParser = do
+  key <- keyParser
   void $ symbol "=>"
   value <- parseExpr
   return (key, value)
+
+regularKeyValue :: Parser (EExpr, EExpr)
+regularKeyValue = keyValue parseExpr
+
+atomKeyValue :: Parser (EExpr, EExpr)
+atomKeyValue = keyValue parseAtom
 
 keywords :: (EExpr -> EExpr -> b) -> Parser b
 keywords wrapper = do
@@ -282,6 +292,9 @@ spacesArgs = C.char ' ' >> commaSeparated parseExpr
 commaSeparated :: Parser a -> Parser [a]
 commaSeparated parser = parser `sepBy` (lexeme $ C.char ',')
 
+commaSeparated1 :: Parser a -> Parser [a]
+commaSeparated1 parser = parser `sepBy1` (lexeme $ C.char ',')
+
 -- Parsers
 listParser :: Parser EExpr
 listParser = between spaceConsumer eof parseList
@@ -304,17 +317,19 @@ parseTuple = Tuple <$> braces (commaSeparated parseExpr)
 parseMap :: Parser EExpr
 parseMap = do
   void $ symbol "%"
-  Map <$> braces (try (commaSeparated keyValue) <|> commaSeparated mapKeywords)
+  Map <$>
+    braces (try (commaSeparated regularKeyValue) <|> commaSeparated mapKeywords)
 
 parseStruct :: Parser EExpr
 parseStruct = do
   void $ symbol "%"
   alias' <- parseAlias
-  Struct alias' <$>
-    braces (try (commaSeparated keyValue) <|> commaSeparated mapKeywords) -- Should only allow atoms for keys, I think?
+  let arrow = commaSeparated1 atomKeyValue
+      keywords = commaSeparated mapKeywords
+  Struct alias' <$> braces (try arrow <|> keywords)
 
 parseAtom :: Parser EExpr
-parseAtom = Atom . T.pack <$!> (try unquotedAtom <|> quotedAtom)
+parseAtom = Atom . T.pack <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
 
 parseString :: Parser EExpr
 parseString = String . T.pack <$!> string

@@ -105,8 +105,11 @@ main =
         , E.map = [(E.Atom "a", E.Integer 1), (E.Atom "b", E.Integer 2)]
         }
 
-      it "does not parse a map with mixed notations" $
+      it "does not parse a struct with mixed notations" $
         parse parseStruct "" `shouldFailOn` "%SomeAlias{a: 1, :b => 2}"
+
+      it "does not parse a struct with string keys" $
+        parse parseStruct "" `shouldFailOn` "%SomeAlias{\"a\" => 1, \"b\" => 2}"
 
       it "parses an atom" $
         parse parseAtom "" ":atom!" `shouldParse` E.Atom "atom!"
@@ -117,6 +120,15 @@ main =
 
       it "parses a ' quoted atom" $
         parse parseAtom "" ":'quoted atom!'" `shouldParse` E.Atom "quoted atom!"
+
+      it "parses true" $
+        parse parseAtom "" "true" `shouldParse` E.Atom "true"
+
+      it "parses false" $
+        parse parseAtom "" "false" `shouldParse` E.Atom "false"
+
+      it "parses nil" $
+        parse parseAtom "" "nil" `shouldParse` E.Atom "nil"
 
       it "parses a string" $
         parse parseString "" "\"a string\"" `shouldParse` E.String "a string"
