@@ -120,15 +120,16 @@ showExpr (Struct alias' keyValues) =
     ]
 showExpr (QualifiedCall alias' name args) =
   T.concat
-    [ showExpr alias'
-    , "."
+    [ "{:., [], [{:"
+    , showExpr alias'
+    , ", [], Elixir}, :"
     , name
-    , "("
+    , "]}, [], ["
     , T.intercalate ", " $ showExpr <$> args
-    , ")"
+    , "]"
     ]
 showExpr (NonQualifiedCall name args) =
-  T.concat [name, "(", T.intercalate ", " $ showExpr <$> args, ")"]
+  T.concat ["{:", name, ", [], [", T.intercalate ", " $ showExpr <$> args, "]"]
 
 showEnv :: Env -> T.Text
 showEnv env =
@@ -182,10 +183,10 @@ squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol "[") (symbol "]")
 
 integer :: Parser Integer
-integer = lexeme L.decimal -- should allow `_`
+integer = lexeme L.decimal -- TODO: should allow `_`
 
 float :: Parser Float
-float = lexeme L.float -- should allow `_`
+float = lexeme L.float -- TODO: should allow `_`
 
 rword :: T.Text -> Parser ()
 rword w =
@@ -360,18 +361,21 @@ parseQualifiedCall = do
   args <- parensArgs <|> spacesArgs
   return $ QualifiedCall alias' name args
 
-parseData :: Parser EExpr
-parseData =
-  try parseStruct <|> try parseMap <|> parseTuple <|> parseList <|> parseInteger <|>
-  parseFloat <|>
+parseExpr :: Parser EExpr
+parseExpr =
+  try parseStruct <|>
+  try parseMap <|>
+  parseTuple <|>
+  parseList <|>
+  try parseFloat <|>
+  parseInteger <|>
   parseAtom <|>
   parseString <|>
   parseCharlist <|>
+  try parseNonQualifiedCall <|>
+  try parseQualifiedCall <|>
   parseVariable <|>
   parseAlias
-
-parseExpr :: Parser EExpr
-parseExpr = parseData <|> parseNonQualifiedCall <|> parseQualifiedCall
 
 --
 -- REPL
