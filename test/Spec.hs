@@ -17,6 +17,7 @@ import Lib
   , parseString
   , parseStruct
   , parseTuple
+  , parseBinary
   , parseVariable
   )
 import Test.Hspec
@@ -71,8 +72,15 @@ main =
         parse parseTuple "" "{1, 2, 3}" `shouldParse`
         E.Tuple [E.Integer 1, E.Integer 2, E.Integer 3]
 
-      it "parses an emtpy tuple" $
+      it "parses an empty tuple" $
         parse parseTuple "" "{}" `shouldParse` E.Tuple []
+
+      it "parses a binary" $
+        parse parseBinary "" "<<1, 2, 3>>" `shouldParse`
+        E.Binary [E.Integer 1, E.Integer 2, E.Integer 3]
+
+      it "parses an empty binary" $
+        parse parseBinary "" "<<>>" `shouldParse` E.Binary []
 
       it "parses a map" $
         parse parseMap "" "%{1 => 2, 3 => 4}" `shouldParse`
@@ -242,8 +250,15 @@ main =
         parse parseExpr "" "{1, 2, 3}" `shouldParse`
         E.Tuple [E.Integer 1, E.Integer 2, E.Integer 3]
 
-      it "parses an emtpy tuple" $
+      it "parses an empty tuple" $
         parse parseExpr "" "{}" `shouldParse` E.Tuple []
+
+      it "parses a binary" $
+        parse parseExpr "" "<<1, 2, 3>>" `shouldParse`
+        E.Binary [E.Integer 1, E.Integer 2, E.Integer 3]
+
+      it "parses an empty binary" $
+        parse parseExpr "" "<<>>" `shouldParse` E.Binary []
 
       it "parses a map" $
         parse parseExpr "" "%{1 => 2, 3 => 4}" `shouldParse`

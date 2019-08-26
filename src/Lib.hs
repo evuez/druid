@@ -64,6 +64,7 @@ data EExpr
            , map :: [(EExpr, EExpr)] }
   | Tuple [EExpr]
   | List [EExpr]
+  | Binary [EExpr]
   | Variable T.Text
   | QualifiedCall { alias' :: EExpr
                   , name :: T.Text
@@ -98,6 +99,8 @@ showExpr (Tuple [expr1, expr2]) =
   T.concat ["{", showExpr expr1, ", ", showExpr expr2, "}"]
 showExpr (Tuple exprs) =
   T.concat ["{:{}, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
+showExpr (Binary exprs) =
+  T.concat ["{:<<>>, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (List exprs) =
   T.concat ["[", T.intercalate ", " $ showExpr <$> exprs, "]"]
 showExpr (Map keyValues) =
@@ -178,6 +181,9 @@ parens = between (symbol "(") (symbol ")")
 
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
+
+chevrons :: Parser a -> Parser a
+chevrons = between (symbol "<<") (symbol ">>")
 
 squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol "[") (symbol "]")
@@ -315,6 +321,9 @@ parseList = List <$> (try regularList <|> keywordList)
 parseTuple :: Parser EExpr
 parseTuple = Tuple <$> braces (commaSeparated parseExpr)
 
+parseBinary :: Parser EExpr
+parseBinary = Binary <$> chevrons (commaSeparated parseExpr)
+
 parseMap :: Parser EExpr
 parseMap = do
   void $ symbol "%"
@@ -367,6 +376,7 @@ parseExpr =
   try parseMap <|>
   parseTuple <|>
   parseList <|>
+  parseBinary <|>
   try parseFloat <|>
   parseInteger <|>
   parseAtom <|>
