@@ -65,6 +65,9 @@ data EExpr
   | Tuple [EExpr]
   | List [EExpr]
   | Binary [EExpr]
+  | Sigil { id :: Char
+          , contents :: T.Text
+          , modifiers :: [Char] }
   | Variable T.Text
   | QualifiedCall { alias' :: EExpr
                   , name :: T.Text
@@ -101,6 +104,16 @@ showExpr (Tuple exprs) =
   T.concat ["{:{}, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (Binary exprs) =
   T.concat ["{:<<>>, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
+showExpr (Sigil id contents modifiers) =
+  T.concat
+    [ "{:sigil_"
+    , T.pack [id]
+    , ", [], [{:<<>>, [], [\""
+    , contents
+    , "\"]}, '"
+    , T.pack modifiers
+    , "']}"
+    ]
 showExpr (List exprs) =
   T.concat ["[", T.intercalate ", " $ showExpr <$> exprs, "]"]
 showExpr (Map keyValues) =
@@ -187,6 +200,19 @@ chevrons = between (symbol "<<") (symbol ">>")
 
 squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol "[") (symbol "]")
+
+sigilContents :: Parser String
+sigilContents =
+  sigilDelimiters '(' ')' <|> sigilDelimiters '{' '}' <|>
+  sigilDelimiters '[' ']' <|>
+  sigilDelimiters '<' '>' <|>
+  sigilDelimiters '|' '|' <|>
+  sigilDelimiters '/' '/' <|>
+  sigilDelimiters '"' '"' <|>
+  sigilDelimiters '\'' '\''
+
+sigilDelimiters :: Char -> Char -> Parser String
+sigilDelimiters a b = C.char a *> manyTill L.charLiteral (C.char b)
 
 integer :: Parser Integer
 integer = lexeme L.decimal -- TODO: should allow `_`
@@ -324,6 +350,14 @@ parseTuple = Tuple <$> braces (commaSeparated parseExpr)
 parseBinary :: Parser EExpr
 parseBinary = Binary <$> chevrons (commaSeparated parseExpr)
 
+parseSigil :: Parser EExpr
+parseSigil = do
+  void $ symbol "~"
+  id <- C.upperChar <|> C.lowerChar
+  contents <- T.pack <$> sigilContents
+  modifiers <- many C.letterChar
+  return $ Sigil id contents modifiers
+
 parseMap :: Parser EExpr
 parseMap = do
   void $ symbol "%"
@@ -374,6 +408,7 @@ parseExpr :: Parser EExpr
 parseExpr =
   try parseStruct <|>
   try parseMap <|>
+  parseSigil <|>
   parseTuple <|>
   parseList <|>
   parseBinary <|>

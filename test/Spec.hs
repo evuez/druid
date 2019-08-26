@@ -6,6 +6,7 @@ import Lib
   , mapKeywords
   , parseAlias
   , parseAtom
+  , parseBinary
   , parseCharlist
   , parseExpr
   , parseFloat
@@ -14,10 +15,10 @@ import Lib
   , parseMap
   , parseNonQualifiedCall
   , parseQualifiedCall
+  , parseSigil
   , parseString
   , parseStruct
   , parseTuple
-  , parseBinary
   , parseVariable
   )
 import Test.Hspec
@@ -82,6 +83,10 @@ main =
       it "parses an empty binary" $
         parse parseBinary "" "<<>>" `shouldParse` E.Binary []
 
+      it "parses a sigil" $
+        parse parseSigil "" "~A{b}c" `shouldParse`
+        E.Sigil {E.id = 'A', E.contents = "b", E.modifiers = "c"}
+
       it "parses a map" $
         parse parseMap "" "%{1 => 2, 3 => 4}" `shouldParse`
         E.Map [(E.Integer 1, E.Integer 2), (E.Integer 3, E.Integer 4)]
@@ -129,14 +134,12 @@ main =
       it "parses a ' quoted atom" $
         parse parseAtom "" ":'quoted atom!'" `shouldParse` E.Atom "quoted atom!"
 
-      it "parses true" $
-        parse parseAtom "" "true" `shouldParse` E.Atom "true"
+      it "parses true" $ parse parseAtom "" "true" `shouldParse` E.Atom "true"
 
       it "parses false" $
         parse parseAtom "" "false" `shouldParse` E.Atom "false"
 
-      it "parses nil" $
-        parse parseAtom "" "nil" `shouldParse` E.Atom "nil"
+      it "parses nil" $ parse parseAtom "" "nil" `shouldParse` E.Atom "nil"
 
       it "parses a string" $
         parse parseString "" "\"a string\"" `shouldParse` E.String "a string"
@@ -260,6 +263,10 @@ main =
       it "parses an empty binary" $
         parse parseExpr "" "<<>>" `shouldParse` E.Binary []
 
+      it "parses a sigil" $
+        parse parseExpr "" "~A{b}c" `shouldParse`
+        E.Sigil {E.id = 'A', E.contents = "b", E.modifiers = "c"}
+
       it "parses a map" $
         parse parseExpr "" "%{1 => 2, 3 => 4}" `shouldParse`
         E.Map [(E.Integer 1, E.Integer 2), (E.Integer 3, E.Integer 4)]
@@ -307,14 +314,12 @@ main =
       it "parses a ' quoted atom" $
         parse parseExpr "" ":'quoted atom!'" `shouldParse` E.Atom "quoted atom!"
 
-      it "parses true" $
-        parse parseExpr "" "true" `shouldParse` E.Atom "true"
+      it "parses true" $ parse parseExpr "" "true" `shouldParse` E.Atom "true"
 
       it "parses false" $
         parse parseExpr "" "false" `shouldParse` E.Atom "false"
 
-      it "parses nil" $
-        parse parseExpr "" "nil" `shouldParse` E.Atom "nil"
+      it "parses nil" $ parse parseExpr "" "nil" `shouldParse` E.Atom "nil"
 
       it "parses a string" $
         parse parseExpr "" "\"a string\"" `shouldParse` E.String "a string"
@@ -323,15 +328,13 @@ main =
         parse parseExpr "" "\"\"" `shouldParse` E.String ""
 
       it "parses a charlist" $
-        parse parseExpr "" "'a charlist'" `shouldParse`
-        E.Charlist "a charlist"
+        parse parseExpr "" "'a charlist'" `shouldParse` E.Charlist "a charlist"
 
       it "parses an empty charlist" $
         parse parseExpr "" "''" `shouldParse` E.Charlist ""
 
       it "parses a variable" $
-        parse parseExpr "" "a_V4riable!" `shouldParse`
-        E.Variable "a_V4riable!"
+        parse parseExpr "" "a_V4riable!" `shouldParse` E.Variable "a_V4riable!"
 
       it "parses an integer" $
         parse parseExpr "" "1234" `shouldParse` E.Integer 1234
