@@ -6,6 +6,10 @@ module Lib where
 import Control.Applicative ((<|>))
 import Control.Exception (Exception, SomeException, fromException, throw)
 import Control.Monad ((<$!>), void)
+import Control.Monad.Combinators.Expr (makeExprParser)
+import qualified Control.Monad.Combinators.Expr as E
+  ( Operator(InfixL, InfixR, Prefix)
+  )
 import Control.Monad.Reader (MonadReader, ReaderT(..), ask, local)
 import qualified Data.Map as M (Map, foldrWithKey, fromList, insert, lookup)
 import qualified Data.Text as T (Text, concat, intercalate, pack, unpack)
@@ -65,7 +69,7 @@ data EExpr
   | Tuple [EExpr]
   | List [EExpr]
   | Binary [EExpr]
-  | Sigil { id :: Char
+  | Sigil { ident :: Char
           , contents :: T.Text
           , modifiers :: [Char] }
   | Variable T.Text
@@ -74,7 +78,65 @@ data EExpr
                   , args :: [EExpr] }
   | NonQualifiedCall { name :: T.Text
                      , args :: [EExpr] }
+  | BinaryOp Operator
+             EExpr
+             EExpr
+  | UnaryOp Operator
+            EExpr
   deriving (Typeable, Eq)
+
+data Operator
+  = And
+  | Application
+  | Assignment
+  | Attribute
+  | Bang
+  | BitwiseAnd
+  | BitwiseNot
+  | BitwiseOr
+  | BitwiseXor
+  | BooleanAnd
+  | BooleanOr
+  | Capture
+  | ChevronPipeChevron
+  | ChevronTilde
+  | ChevronTildeChevron
+  | Concat
+  | DefaultArg
+  | Difference
+  | Division
+  | DoubleChevronTilde
+  | Equal
+  | GreaterThan
+  | GreaterThanOrEqual
+  | Id
+  | In
+  | LeftArrow
+  | LessThan
+  | LessThanOrEqual
+  | Negation
+  | Not
+  | NotEqual
+  | NotIn
+  | Or
+  | Pin
+  | Pipe
+  | PipeRight
+  | Product
+  | Range
+  | RegexEqual
+  | ShiftLeft
+  | ShiftRight
+  | SpecType
+  | StrictEqual
+  | StrictNotEqual
+  | StringConcat
+  | Subtraction
+  | Sum
+  | TildeChevron
+  | TildeDoubleChevron
+  | When
+  deriving (Eq)
 
 type Env = M.Map T.Text EExpr
 
@@ -97,17 +159,17 @@ showExpr (Integer integer) = T.pack $ show integer
 showExpr (Float float) = T.pack $ show float
 showExpr (String text) = T.concat ["\"", text, "\""]
 showExpr (Charlist text) = T.concat ["'", text, "'"]
-showExpr (Variable name) = name
+showExpr (Variable name) = T.concat ["{:", name, ", [], Elixir}"]
 showExpr (Tuple [expr1, expr2]) =
   T.concat ["{", showExpr expr1, ", ", showExpr expr2, "}"]
 showExpr (Tuple exprs) =
   T.concat ["{:{}, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (Binary exprs) =
   T.concat ["{:<<>>, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
-showExpr (Sigil id contents modifiers) =
+showExpr (Sigil ident contents modifiers) =
   T.concat
     [ "{:sigil_"
-    , T.pack [id]
+    , T.pack [ident]
     , ", [], [{:<<>>, [], [\""
     , contents
     , "\"]}, '"
@@ -142,10 +204,65 @@ showExpr (QualifiedCall alias' name args) =
     , name
     , "]}, [], ["
     , T.intercalate ", " $ showExpr <$> args
-    , "]"
+    , "]}"
     ]
 showExpr (NonQualifiedCall name args) =
-  T.concat ["{:", name, ", [], [", T.intercalate ", " $ showExpr <$> args, "]"]
+  T.concat ["{:", name, ", [], [", T.intercalate ", " $ showExpr <$> args, "]}"]
+showExpr (BinaryOp op a b) =
+  T.concat [showExpr a, " ", showOp op, " ", showExpr b]
+showExpr (UnaryOp op a) = T.concat [showOp op, showExpr a]
+
+showOp :: Operator -> T.Text
+showOp And = "&&"
+showOp Application = "."
+showOp Assignment = "="
+showOp Attribute = "&"
+showOp Bang = "!"
+showOp BitwiseAnd = "&&&"
+showOp BitwiseNot = "~~~"
+showOp BitwiseOr = "|||"
+showOp BitwiseXor = "^^^"
+showOp BooleanAnd = "and"
+showOp BooleanOr = "or"
+showOp Capture = "&"
+showOp ChevronPipeChevron = "<|>"
+showOp ChevronTilde = "<~"
+showOp ChevronTildeChevron = "<~>"
+showOp Concat = "++"
+showOp DefaultArg = "\\"
+showOp Difference = "--"
+showOp Division = "/"
+showOp DoubleChevronTilde = "<<~"
+showOp Equal = "=="
+showOp GreaterThan = ">"
+showOp GreaterThanOrEqual = ">="
+showOp Id = "+"
+showOp In = "in"
+showOp LeftArrow = "<-"
+showOp LessThan = "<"
+showOp LessThanOrEqual = "<="
+showOp Negation = "-"
+showOp Not = "not"
+showOp NotEqual = "!="
+showOp NotIn = "not in"
+showOp Or = "||"
+showOp Pin = "^"
+showOp Pipe = "|"
+showOp PipeRight = "|>"
+showOp Product = "*"
+showOp Range = ".."
+showOp RegexEqual = "=~"
+showOp ShiftLeft = "<<<"
+showOp ShiftRight = ">>>"
+showOp SpecType = "::"
+showOp StrictEqual = "==="
+showOp StrictNotEqual = "!=="
+showOp StringConcat = "<>"
+showOp Subtraction = "-"
+showOp Sum = "+"
+showOp TildeChevron = "~>"
+showOp TildeDoubleChevron = "~>>"
+showOp When = "when"
 
 showEnv :: Env -> T.Text
 showEnv env =
@@ -155,7 +272,7 @@ showEnv env =
 --
 -- Data
 --
-reservedWords :: [[Char]]
+reservedWords :: [String]
 reservedWords =
   [ "true"
   , "false"
@@ -173,6 +290,69 @@ reservedWords =
   , "after"
   , "else"
   ]
+
+--
+-- Operators
+--
+opsTable :: [[E.Operator Parser EExpr]]
+opsTable =
+  [ [prefix "@" Attribute]
+  , [infixl' "." Application]
+  , [ prefix "+" Id
+    , prefix "-" Negation
+    , prefix "!" Bang
+    , prefix "^" Pin
+    , prefix "not" Not
+    , prefix "~~~" BitwiseNot
+    ]
+  , [infixl' "*" Product, infixl' "/" Division]
+  , [infixl' "+" Sum, infixl' "-" Subtraction]
+  , [ infixr' "++" Concat
+    , infixr' "--" Difference
+    , infixr' ".." Range
+    , infixr' "<>" StringConcat
+    ]
+  , [infixl' "^^^" BitwiseXor]
+  , [infixl' "in" In, infixl' "not in" NotIn]
+  , [ infixl' "|>" PipeRight
+    , infixl' "<<<" ShiftLeft
+    , infixl' ">>>" ShiftRight
+    , infixl' "<<~" DoubleChevronTilde
+    , infixl' "~>>" TildeDoubleChevron
+    , infixl' "<~" ChevronTilde
+    , infixl' "~>" TildeChevron
+    , infixl' "<~>" ChevronTildeChevron
+    , infixl' "<|>" ChevronPipeChevron
+    ]
+  , [ infixl' "<" LessThan
+    , infixl' ">" GreaterThan
+    , infixl' "<=" LessThanOrEqual
+    , infixl' ">=" GreaterThanOrEqual
+    ]
+  , [ infixl' "===" StrictEqual
+    , infixl' "!==" StrictNotEqual
+    , infixl' "==" Equal
+    , infixl' "!=" NotEqual
+    , infixl' "=~" RegexEqual
+    ]
+  , [infixl' "&&" And, infixl' "&&&" BitwiseAnd, infixl' "and" BooleanAnd]
+  , [infixl' "||" Or, infixl' "|||" BitwiseOr, infixl' "or" BooleanOr]
+  , [infixr' "=" Assignment]
+  , [prefix "&" Capture]
+  , [infixr' "|" Pipe]
+  , [infixr' "::" SpecType]
+  , [infixr' "when" When]
+  , [infixl' "<-" LeftArrow, infixl' "\\" DefaultArg]
+  ]
+
+prefix :: T.Text -> Operator -> E.Operator Parser EExpr
+prefix name f = E.Prefix (UnaryOp f <$ symbol name)
+
+infixl' :: T.Text -> Operator -> E.Operator Parser EExpr
+infixl' name f = E.InfixL (BinaryOp f <$ symbol name)
+
+infixr' :: T.Text -> Operator -> E.Operator Parser EExpr
+infixr' name f = E.InfixR (BinaryOp f <$ symbol name)
 
 --
 -- Lexer
@@ -353,10 +533,10 @@ parseBinary = Binary <$> chevrons (commaSeparated parseExpr)
 parseSigil :: Parser EExpr
 parseSigil = do
   void $ symbol "~"
-  id <- C.upperChar <|> C.lowerChar
+  ident <- C.upperChar <|> C.lowerChar
   contents <- T.pack <$> sigilContents
   modifiers <- many C.letterChar
-  return $ Sigil id contents modifiers
+  return $ Sigil ident contents modifiers
 
 parseMap :: Parser EExpr
 parseMap = do
@@ -406,11 +586,7 @@ parseQualifiedCall = do
 
 parseExpr :: Parser EExpr
 parseExpr =
-  try parseStruct <|>
-  try parseMap <|>
-  parseSigil <|>
-  parseTuple <|>
-  parseList <|>
+  try parseStruct <|> try parseMap <|> parseSigil <|> parseTuple <|> parseList <|>
   parseBinary <|>
   try parseFloat <|>
   parseInteger <|>
@@ -421,6 +597,10 @@ parseExpr =
   try parseQualifiedCall <|>
   parseVariable <|>
   parseAlias
+
+-- TODO: Clean up ltr / rtl / unary ops
+parseExpr' :: Parser EExpr
+parseExpr' = makeExprParser parseExpr opsTable
 
 --
 -- REPL

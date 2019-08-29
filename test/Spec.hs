@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import qualified Lib as E (EExpr(..))
+import qualified Lib as E (EExpr(..), Operator(..))
 import Lib
   ( listKeywords
   , mapKeywords
@@ -9,6 +9,7 @@ import Lib
   , parseBinary
   , parseCharlist
   , parseExpr
+  , parseExpr'
   , parseFloat
   , parseInteger
   , parseList
@@ -85,7 +86,7 @@ main =
 
       it "parses a sigil" $
         parse parseSigil "" "~A{b}c" `shouldParse`
-        E.Sigil {E.id = 'A', E.contents = "b", E.modifiers = "c"}
+        E.Sigil {E.ident = 'A', E.contents = "b", E.modifiers = "c"}
 
       it "parses a map" $
         parse parseMap "" "%{1 => 2, 3 => 4}" `shouldParse`
@@ -265,7 +266,7 @@ main =
 
       it "parses a sigil" $
         parse parseExpr "" "~A{b}c" `shouldParse`
-        E.Sigil {E.id = 'A', E.contents = "b", E.modifiers = "c"}
+        E.Sigil {E.ident = 'A', E.contents = "b", E.modifiers = "c"}
 
       it "parses a map" $
         parse parseExpr "" "%{1 => 2, 3 => 4}" `shouldParse`
@@ -404,3 +405,193 @@ main =
         , E.name = "a func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
+
+    describe "expression parser (with operators)" $ do
+      -- it "parses @" $
+        -- parse parseExpr' "@test" "" `shouldParse` E.UnaryOp E.Attribute (E.Integer 1)
+
+      -- it "parses ." $
+        -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.Application
+
+      it "parses the + prefix" $
+        parse parseExpr' "" "+1" `shouldParse` E.UnaryOp E.Id (E.Integer 1)
+
+      it "parses the - prefix" $
+        parse parseExpr' "" "-1" `shouldParse`
+        E.UnaryOp E.Negation (E.Integer 1)
+
+      it "parses !" $
+        parse parseExpr' "" "!true" `shouldParse`
+        E.UnaryOp E.Bang (E.Atom "true")
+
+      it "parses ^" $
+        parse parseExpr' "" "^abc" `shouldParse`
+        E.UnaryOp E.Pin (E.Variable "abc")
+
+      it "parses not" $
+        parse parseExpr' "" "not true" `shouldParse`
+        E.UnaryOp E.Not (E.Atom "true")
+
+      it "parses ~~~" $
+        parse parseExpr' "" "~~~1" `shouldParse`
+        E.UnaryOp E.BitwiseNot (E.Integer 1)
+
+      it "parses *" $
+        parse parseExpr' "" "1 * 2" `shouldParse`
+        E.BinaryOp E.Product (E.Integer 1) (E.Integer 2)
+
+      it "parses /" $
+        parse parseExpr' "" "1 / 2" `shouldParse`
+        E.BinaryOp E.Division (E.Integer 1) (E.Integer 2)
+
+      it "parses +" $
+        parse parseExpr' "" "1 + 2" `shouldParse`
+        E.BinaryOp E.Sum (E.Integer 1) (E.Integer 2)
+
+      it "parses -" $
+        parse parseExpr' "" "1 - 2" `shouldParse`
+        E.BinaryOp E.Subtraction (E.Integer 1) (E.Integer 2)
+
+      -- it "parses ++" $
+        -- parse parseExpr' "" "[1] ++ [2]" `shouldParse` E.BinaryOp E.Concat (E.List [E.Integer 1]) (E.List [E.Integer 2])
+
+      -- it "parses --" $
+        -- parse parseExpr' "" "[1] -- [2]" `shouldParse` E.BinaryOp E.Difference (E.List [E.Integer 1]) (E.List [E.Integer 2])
+
+      -- it "parses .." $
+        -- parse parseExpr' "" "1..2" `shouldParse` E.BinaryOp E.Range (E.Integer 1) (E.Integer 2)
+
+      it "parses <>" $
+        parse parseExpr' "" "\"a\" <> \"b\"" `shouldParse`
+        E.BinaryOp E.StringConcat (E.String "a") (E.String "b")
+
+      it "parses ^^^" $
+        parse parseExpr' "" "1 ^^^ 2" `shouldParse`
+        E.BinaryOp E.BitwiseXor (E.Integer 1) (E.Integer 2)
+
+      it "parses in" $
+        parse parseExpr' "" "1 in [2, 3]" `shouldParse`
+        E.BinaryOp E.In (E.Integer 1) (E.List [E.Integer 2, E.Integer 3])
+
+      it "parses not in" $
+        parse parseExpr' "" "1 not in [2, 3]" `shouldParse`
+        E.BinaryOp E.NotIn (E.Integer 1) (E.List [E.Integer 2, E.Integer 3])
+
+      it "parses |>" $
+        parse parseExpr' "" "1 |> a()" `shouldParse`
+        E.BinaryOp
+          E.PipeRight
+          (E.Integer 1)
+          (E.NonQualifiedCall {E.name = "a", E.args = []})
+
+      it "parses <<<" $
+        parse parseExpr' "" "1 <<< 2" `shouldParse`
+        E.BinaryOp E.ShiftLeft (E.Integer 1) (E.Integer 2)
+
+      it "parses >>>" $
+        parse parseExpr' "" "1 >>> 2" `shouldParse`
+        E.BinaryOp E.ShiftRight (E.Integer 1) (E.Integer 2)
+
+      it "parses <<~" $
+        parse parseExpr' "" "1 <<~ 2" `shouldParse`
+        E.BinaryOp E.DoubleChevronTilde (E.Integer 1) (E.Integer 2)
+
+      it "parses ~>>" $
+        parse parseExpr' "" "1 ~>> 2" `shouldParse`
+        E.BinaryOp E.TildeDoubleChevron (E.Integer 1) (E.Integer 2)
+
+      it "parses <~" $
+        parse parseExpr' "" "1 <~ 2" `shouldParse`
+        E.BinaryOp E.ChevronTilde (E.Integer 1) (E.Integer 2)
+
+      it "parses ~>" $
+        parse parseExpr' "" "1 ~> 2" `shouldParse`
+        E.BinaryOp E.TildeChevron (E.Integer 1) (E.Integer 2)
+      --it "parses <~>" $
+        --parse parseExpr' "" "1 <~> 2" `shouldParse` E.BinaryOp E.ChevronTildeChevron (E.Integer 1) (E.Integer 2)
+
+      it "parses <|>" $
+        parse parseExpr' "" "1 <|> 2" `shouldParse`
+        E.BinaryOp E.ChevronPipeChevron (E.Integer 1) (E.Integer 2)
+
+      it "parses <" $
+        parse parseExpr' "" "1 < 2" `shouldParse`
+        E.BinaryOp E.LessThan (E.Integer 1) (E.Integer 2)
+
+      it "parses >" $
+        parse parseExpr' "" "1 > 2" `shouldParse`
+        E.BinaryOp E.GreaterThan (E.Integer 1) (E.Integer 2)
+      -- it "parses <=" $
+        -- parse parseExpr' "" "1 <= 2" `shouldParse` E.BinaryOp E.LessThanOrEqual (E.Integer 1) (E.Integer 2)
+
+      -- it "parses >=" $
+        -- parse parseExpr' "" "1 >= 2" `shouldParse` E.BinaryOp E.GreaterThanOrEqual (E.Integer 1) (E.Integer 2)
+
+      it "parses ===" $
+        parse parseExpr' "" "1 === 2" `shouldParse`
+        E.BinaryOp E.StrictEqual (E.Integer 1) (E.Integer 2)
+
+      it "parses !==" $
+        parse parseExpr' "" "1 !== 2" `shouldParse`
+        E.BinaryOp E.StrictNotEqual (E.Integer 1) (E.Integer 2)
+
+      it "parses ==" $
+        parse parseExpr' "" "1 == 2" `shouldParse`
+        E.BinaryOp E.Equal (E.Integer 1) (E.Integer 2)
+
+      it "parses !=" $
+        parse parseExpr' "" "1 != 2" `shouldParse`
+        E.BinaryOp E.NotEqual (E.Integer 1) (E.Integer 2)
+
+      it "parses =~" $
+        parse parseExpr' "" "\"a\" =~ ~r/b/" `shouldParse`
+        E.BinaryOp
+          E.RegexEqual
+          (E.String "a")
+          (E.Sigil {E.ident = 'r', E.contents = "b", E.modifiers = ""})
+
+      it "parses &&" $
+        parse parseExpr' "" "1 && 2" `shouldParse`
+        E.BinaryOp E.And (E.Integer 1) (E.Integer 2)
+
+      -- it "parses &&&" $
+        -- parse parseExpr' "" "1 &&& 2" `shouldParse` E.BinaryOp E.BitwiseAnd (E.Integer 1) (E.Integer 2)
+
+      it "parses and" $
+        parse parseExpr' "" "true and false" `shouldParse`
+        E.BinaryOp E.BooleanAnd (E.Atom "true") (E.Atom "false")
+
+      it "parses ||" $
+        parse parseExpr' "" "1 || 2" `shouldParse`
+        E.BinaryOp E.Or (E.Integer 1) (E.Integer 2)
+
+      -- it "parses |||" $
+        -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.BitwiseOr
+
+      it "parses or" $
+        parse parseExpr' "" "true or false" `shouldParse`
+        E.BinaryOp E.BooleanOr (E.Atom "true") (E.Atom "false")
+
+      it "parses =" $
+        parse parseExpr' "" "1 = 2" `shouldParse`
+        E.BinaryOp E.Assignment (E.Integer 1) (E.Integer 2)
+
+      it "parses &" $
+        parse parseExpr' "" "&a" `shouldParse`
+        E.UnaryOp E.Capture (E.Variable "a")
+
+      it "parses |" $
+        parse parseExpr' "" "1 | 2" `shouldParse`
+        E.BinaryOp E.Pipe (E.Integer 1) (E.Integer 2)
+
+      -- it "parses ::" $
+        -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.SpecType
+
+      -- it "parses when" $
+        -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.When
+
+      -- it "parses <-" $
+        -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.LeftArrow
+
+      -- it "parses \\" $
+        -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.DefaultArg
