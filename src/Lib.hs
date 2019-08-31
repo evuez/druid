@@ -500,7 +500,7 @@ parensArgs :: Parser [EExpr]
 parensArgs = between (symbol "(") (symbol ")") (commaSeparated parseExpr)
 
 spacesArgs :: Parser [EExpr]
-spacesArgs = C.char ' ' >> commaSeparated parseExpr
+spacesArgs = C.char ' ' >> commaSeparated1 parseExpr
 
 commaSeparated :: Parser a -> Parser [a]
 commaSeparated parser = parser `sepBy` (lexeme $ C.char ',')

@@ -551,8 +551,8 @@ main =
           (E.Sigil {E.ident = 'r', E.contents = "b", E.modifiers = ""})
 
       it "parses &&" $
-        parse parseExpr' "" "1 && 2" `shouldParse`
-        E.BinaryOp E.And (E.Integer 1) (E.Integer 2)
+        parse parseExpr' "" "a && b" `shouldParse`
+        E.BinaryOp E.And (E.Variable "a") (E.Variable "b")
 
       -- it "parses &&&" $
         -- parse parseExpr' "" "1 &&& 2" `shouldParse` E.BinaryOp E.BitwiseAnd (E.Integer 1) (E.Integer 2)
@@ -573,8 +573,8 @@ main =
         E.BinaryOp E.BooleanOr (E.Atom "true") (E.Atom "false")
 
       it "parses =" $
-        parse parseExpr' "" "1 = 2" `shouldParse`
-        E.BinaryOp E.Assignment (E.Integer 1) (E.Integer 2)
+        parse parseExpr' "" "a = 1" `shouldParse`
+        E.BinaryOp E.Assignment (E.Variable "a") (E.Integer 1)
 
       it "parses &" $
         parse parseExpr' "" "&a" `shouldParse`
