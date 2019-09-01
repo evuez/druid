@@ -297,7 +297,7 @@ reservedWords =
 opsTable :: [[E.Operator Parser EExpr]]
 opsTable =
   [ [prefix "@" Attribute]
-  , [infixl' "." Application]
+  , [infixlNotFollowedBy "." Application "."]
   , [ prefix "+" Id
     , prefix "-" Negation
     , prefix "!" Bang
@@ -306,7 +306,7 @@ opsTable =
     , prefix "~~~" BitwiseNot
     ]
   , [infixl' "*" Product, infixl' "/" Division]
-  , [infixl' "+" Sum, infixl' "-" Subtraction]
+  , [infixlNotFollowedBy "+" Sum "+", infixlNotFollowedBy "-" Subtraction "-"]
   , [ infixr' "++" Concat
     , infixr' "--" Difference
     , infixr' ".." Range
@@ -319,13 +319,13 @@ opsTable =
     , infixl' ">>>" ShiftRight
     , infixl' "<<~" DoubleChevronTilde
     , infixl' "~>>" TildeDoubleChevron
-    , infixl' "<~" ChevronTilde
+    , infixlNotFollowedBy "<~" ChevronTilde ">"
     , infixl' "~>" TildeChevron
     , infixl' "<~>" ChevronTildeChevron
     , infixl' "<|>" ChevronPipeChevron
     ]
-  , [ infixl' "<" LessThan
-    , infixl' ">" GreaterThan
+  , [ infixlNotFollowedBy "<" LessThan "-="
+    , infixlNotFollowedBy ">" GreaterThan "="
     , infixl' "<=" LessThanOrEqual
     , infixl' ">=" GreaterThanOrEqual
     ]
@@ -335,8 +335,14 @@ opsTable =
     , infixl' "!=" NotEqual
     , infixl' "=~" RegexEqual
     ]
-  , [infixl' "&&" And, infixl' "&&&" BitwiseAnd, infixl' "and" BooleanAnd]
-  , [infixl' "||" Or, infixl' "|||" BitwiseOr, infixl' "or" BooleanOr]
+  , [ infixlNotFollowedBy "&&" And "&"
+    , infixl' "&&&" BitwiseAnd
+    , infixl' "and" BooleanAnd
+    ]
+  , [ infixlNotFollowedBy "||" Or "|"
+    , infixl' "|||" BitwiseOr
+    , infixl' "or" BooleanOr
+    ]
   , [infixr' "=" Assignment]
   , [prefix "&" Capture]
   , [infixr' "|" Pipe]
@@ -353,6 +359,10 @@ infixl' name f = E.InfixL (BinaryOp f <$ symbol name)
 
 infixr' :: T.Text -> Operator -> E.Operator Parser EExpr
 infixr' name f = E.InfixR (BinaryOp f <$ symbol name)
+
+infixlNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
+infixlNotFollowedBy name f chars =
+  E.InfixL (BinaryOp f <$ try (symbol name <* notFollowedBy (oneOf chars)))
 
 --
 -- Lexer
@@ -408,11 +418,15 @@ variable :: Parser String
 variable = lexeme identifier
 
 identifier :: Parser String
-identifier =
-  (++) <$>
-  ((:) <$> (C.lowerChar <|> C.char '_') <*>
-   many (C.letterChar <|> C.digitChar <|> C.char '_')) <*>
-  count' 0 1 (oneOf ("!?" :: [Char]))
+identifier = p >>= check
+  where
+    p =
+      (++) <$>
+      ((:) <$> (C.lowerChar <|> C.char '_') <*>
+       many (C.letterChar <|> C.digitChar <|> C.char '_')) <*>
+      count' 0 1 (oneOf ("!?" :: [Char]))
+    check "when" = fail $ "when is a reserved keyword"
+    check x = return x
 
 string :: Parser String
 string = lexeme strictString
