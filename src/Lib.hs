@@ -154,7 +154,8 @@ instance Show EExpr where
 -- TODO: Display ast form instead
 showExpr :: EExpr -> T.Text
 showExpr (Atom atom) = T.concat [":", atom]
-showExpr (Alias alias') = T.intercalate "." alias'
+showExpr (Alias alias') =
+  T.concat ["{:__aliases__, [], [:", T.intercalate ", :" alias', "]}"]
 showExpr (Integer integer) = T.pack $ show integer
 showExpr (Float float) = T.pack $ show float
 showExpr (String text) = T.concat ["\"", text, "\""]
@@ -209,14 +210,14 @@ showExpr (QualifiedCall alias' name args) =
 showExpr (NonQualifiedCall name args) =
   T.concat ["{:", name, ", [], [", T.intercalate ", " $ showExpr <$> args, "]}"]
 showExpr (BinaryOp op a b) =
-  T.concat [showExpr a, " ", showOp op, " ", showExpr b]
+  T.concat ["{:", showOp op, ", [], [", showExpr a, ", ", showExpr b, "]}"]
 showExpr (UnaryOp op a) = T.concat [showOp op, showExpr a]
 
 showOp :: Operator -> T.Text
 showOp And = "&&"
 showOp Application = "."
 showOp Assignment = "="
-showOp Attribute = "&"
+showOp Attribute = "@"
 showOp Bang = "!"
 showOp BitwiseAnd = "&&&"
 showOp BitwiseNot = "~~~"

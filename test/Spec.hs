@@ -407,8 +407,8 @@ main =
         }
 
     describe "expression parser (with operators)" $ do
-      -- it "parses @" $
-        -- parse parseExpr' "@test" "" `shouldParse` E.UnaryOp E.Attribute (E.Integer 1)
+      it "parses @" $
+        parse parseExpr' "" "@a" `shouldParse` E.UnaryOp E.Attribute (E.Variable "a")
 
       -- it "parses ." $
         -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.Application
