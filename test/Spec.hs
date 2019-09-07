@@ -7,6 +7,7 @@ import Lib
   , parseAlias
   , parseAtom
   , parseBinary
+  , parseBlock
   , parseCharlist
   , parseExpr
   , parseExpr'
@@ -183,6 +184,56 @@ main =
         E.NonQualifiedCall
         {E.name = "func!", E.args = [E.Integer 1, E.Integer 2]}
 
+      it "parses a spaced non-qualified call with a do block" $ do
+        parse parseNonQualifiedCall "" "func! 1, 2 do 1;2; end" `shouldParse`
+          E.NonQualifiedCall
+          { E.name = "func!"
+          , E.args =
+              [ E.Integer 1
+              , E.Integer 2
+              , E.List
+                  [ E.Tuple
+                      [ E.Atom "do"
+                      , E.NonQualifiedCall
+                          "__block__"
+                          [E.Integer 1, E.Integer 2]
+                      ]
+                  ]
+              ]
+          }
+        parse parseNonQualifiedCall "" "func! 1, 2 do 1;2 end" `shouldParse`
+          E.NonQualifiedCall
+          { E.name = "func!"
+          , E.args =
+              [ E.Integer 1
+              , E.Integer 2
+              , E.List
+                  [ E.Tuple
+                      [ E.Atom "do"
+                      , E.NonQualifiedCall
+                          "__block__"
+                          [E.Integer 1, E.Integer 2]
+                      ]
+                  ]
+              ]
+          }
+        parse parseNonQualifiedCall "" "func! 1, 2 do \n1\n2\n end" `shouldParse`
+          E.NonQualifiedCall
+          { E.name = "func!"
+          , E.args =
+              [ E.Integer 1
+              , E.Integer 2
+              , E.List
+                  [ E.Tuple
+                      [ E.Atom "do"
+                      , E.NonQualifiedCall
+                          "__block__"
+                          [E.Integer 1, E.Integer 2]
+                      ]
+                  ]
+              ]
+          }
+
       it "parses a /2 qualified call" $
         parse parseQualifiedCall "" "Some.Alias.func!(1, 2)" `shouldParse`
         E.QualifiedCall
@@ -211,6 +262,59 @@ main =
         , E.name = "func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
+
+      it "parses a spaced qualified call with a do block" $ do
+        parse parseQualifiedCall "" "Some.Alias.func! 1, 2 do 1;2; end" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "func!"
+          , E.args =
+              [ E.Integer 1
+              , E.Integer 2
+              , E.List
+                  [ E.Tuple
+                      [ E.Atom "do"
+                      , E.NonQualifiedCall
+                          "__block__"
+                          [E.Integer 1, E.Integer 2]
+                      ]
+                  ]
+              ]
+          }
+        parse parseQualifiedCall "" "Some.Alias.func! 1, 2 do 1;2 end" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "func!"
+          , E.args =
+              [ E.Integer 1
+              , E.Integer 2
+              , E.List
+                  [ E.Tuple
+                      [ E.Atom "do"
+                      , E.NonQualifiedCall
+                          "__block__"
+                          [E.Integer 1, E.Integer 2]
+                      ]
+                  ]
+              ]
+          }
+        parse parseQualifiedCall "" "Some.Alias.func! 1, 2 do \n1\n2\n end" `shouldParse`
+          E.QualifiedCall
+          { E.alias' = E.Alias ["Some", "Alias"]
+          , E.name = "func!"
+          , E.args =
+              [ E.Integer 1
+              , E.Integer 2
+              , E.List
+                  [ E.Tuple
+                      [ E.Atom "do"
+                      , E.NonQualifiedCall
+                          "__block__"
+                          [E.Integer 1, E.Integer 2]
+                      ]
+                  ]
+              ]
+          }
 
       it "parses a quoted qualified call" $
         parse parseQualifiedCall "" "Some.Alias.\"a func!\"(1, 2)" `shouldParse`
@@ -408,10 +512,11 @@ main =
 
     describe "expression parser (with operators)" $ do
       it "parses @" $
-        parse parseExpr' "" "@a" `shouldParse` E.UnaryOp E.Attribute (E.Variable "a")
+        parse parseExpr' "" "@a" `shouldParse`
+        E.UnaryOp E.Attribute (E.Variable "a")
 
       -- it "parses ." $
-        -- parse parseExpr' "" "" `shouldParse` E.BinaryOp E.Application
+        -- parse parseExpr' "" "a.b" `shouldParse` E.BinaryOp E.Application (E.Variable "a") (E.Atom "b")
 
       it "parses the + prefix" $
         parse parseExpr' "" "+1" `shouldParse` E.UnaryOp E.Id (E.Integer 1)
@@ -609,3 +714,25 @@ main =
       it "parses \\\\" $
         parse parseExpr' "" "a \\ 1" `shouldParse`
         E.BinaryOp E.DefaultArg (E.Variable "a") (E.Integer 1)
+
+    describe "block parser" $ do
+      it "parses an empty expression" $ do
+        parse parseBlock "" "" `shouldParse` []
+        parse parseBlock "" " \t" `shouldParse` []
+
+      it "parses expressions separated by semicolons" $ do
+        parse parseBlock "" "1;" `shouldParse` [(E.Integer 1)]
+        parse parseBlock "" "1;2;3" `shouldParse`
+          [(E.Integer 1), (E.Integer 2), (E.Integer 3)]
+        parse parseBlock "" "1 ;2" `shouldParse` [(E.Integer 1), (E.Integer 2)]
+        parse parseBlock "" "1; 2" `shouldParse` [(E.Integer 1), (E.Integer 2)]
+        parse parseBlock "" "1 ; 2" `shouldParse` [(E.Integer 1), (E.Integer 2)]
+
+      it "parses expressions separated by new lines" $ do
+        parse parseBlock "" "1\n" `shouldParse` [(E.Integer 1)]
+        parse parseBlock "" "1\n2\n3" `shouldParse`
+          [(E.Integer 1), (E.Integer 2), (E.Integer 3)]
+        parse parseBlock "" "1 \n2" `shouldParse` [(E.Integer 1), (E.Integer 2)]
+        parse parseBlock "" "1\n 2" `shouldParse` [(E.Integer 1), (E.Integer 2)]
+        parse parseBlock "" "1 \n 2" `shouldParse`
+          [(E.Integer 1), (E.Integer 2)]

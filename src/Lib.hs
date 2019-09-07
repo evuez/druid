@@ -3,7 +3,7 @@
 
 module Lib where
 
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), empty, optional)
 import Control.Exception (Exception, SomeException, fromException, throw)
 import Control.Monad ((<$!>), void)
 import Control.Monad.Combinators.Expr (makeExprParser)
@@ -31,12 +31,14 @@ import Text.Megaparsec
   , parse
   , sepBy
   , sepBy1
+  , sepEndBy
   , skipCount
   , try
   )
 import qualified Text.Megaparsec.Char as C
   ( char
   , digitChar
+  , eol
   , letterChar
   , lowerChar
   , space1
@@ -369,16 +371,28 @@ infixlNotFollowedBy name f chars =
 -- Lexer
 --
 spaceConsumer :: Parser ()
-spaceConsumer = L.space C.space1 lineComment blockComment
+spaceConsumer = L.space space lineComment blockComment
   where
     lineComment = L.skipLineComment "#"
-    blockComment = L.skipBlockComment "removeme" "removeme" -- TODO: Remove
+    blockComment = empty
+
+spaceConsumer' :: Parser ()
+spaceConsumer' = L.space C.space1 lineComment blockComment
+  where
+    lineComment = L.skipLineComment "#"
+    blockComment = empty
+
+space :: Parser ()
+space = void $ oneOf (" \t" :: [Char])
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
 
 symbol :: T.Text -> Parser T.Text
 symbol = L.symbol spaceConsumer
+
+symbol' :: T.Text -> Parser T.Text
+symbol' = L.symbol spaceConsumer'
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
@@ -391,6 +405,9 @@ chevrons = between (symbol "<<") (symbol ">>")
 
 squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol "[") (symbol "]")
+
+doEnd :: Parser a -> Parser a
+doEnd = between (symbol' "do") (symbol "end")
 
 sigilContents :: Parser String
 sigilContents =
@@ -418,6 +435,9 @@ rword w =
 variable :: Parser String
 variable = lexeme identifier
 
+semicolon :: Parser T.Text
+semicolon = symbol ";"
+
 identifier :: Parser String
 identifier = p >>= check
   where
@@ -426,8 +446,10 @@ identifier = p >>= check
       ((:) <$> (C.lowerChar <|> C.char '_') <*>
        many (C.letterChar <|> C.digitChar <|> C.char '_')) <*>
       count' 0 1 (oneOf ("!?" :: [Char]))
-    check "when" = fail $ "when is a reserved keyword"
-    check x = return x
+    check x =
+      if x `elem` reservedWords
+        then fail $ show x ++ " is a reserved keyword"
+        else return x
 
 string :: Parser String
 string = lexeme strictString
@@ -512,10 +534,16 @@ listKeywords :: Parser EExpr
 listKeywords = keywords (\k v -> Tuple [k, v])
 
 parensArgs :: Parser [EExpr]
-parensArgs = between (symbol "(") (symbol ")") (commaSeparated parseExpr)
+parensArgs = parens (commaSeparated parseExpr)
 
 spacesArgs :: Parser [EExpr]
-spacesArgs = C.char ' ' >> commaSeparated1 parseExpr
+spacesArgs = do
+  void $ C.char ' '
+  args <- commaSeparated1 parseExpr
+  doBlock <- optional parseDoBlock
+  case doBlock of
+    Just doBlock' -> return $ args ++ [doBlock']
+    Nothing -> return args
 
 commaSeparated :: Parser a -> Parser [a]
 commaSeparated parser = parser `sepBy` (lexeme $ C.char ',')
@@ -524,11 +552,16 @@ commaSeparated1 :: Parser a -> Parser [a]
 commaSeparated1 parser = parser `sepBy1` (lexeme $ C.char ',')
 
 -- Parsers
-listParser :: Parser EExpr
-listParser = between spaceConsumer eof parseList
-
 exprParser :: Parser EExpr
 exprParser = between spaceConsumer eof parseExpr
+
+parseBlock :: Parser [EExpr]
+parseBlock = try parseExpr `sepEndBy` (semicolon <|> lexeme C.eol)
+
+parseDoBlock :: Parser EExpr
+parseDoBlock = wrapper <$> doEnd parseBlock
+  where
+    wrapper x = List [Tuple [Atom "do", NonQualifiedCall "__block__" x]]
 
 parseAlias :: Parser EExpr
 parseAlias = Alias <$> fmap T.pack <$> alias
@@ -622,6 +655,3 @@ parseExpr' = makeExprParser parseExpr opsTable
 --
 readExpr :: T.Text -> Either ParseError EExpr
 readExpr = parse exprParser ""
-
-readList :: T.Text -> Either ParseError EExpr
-readList = parse listParser ""
