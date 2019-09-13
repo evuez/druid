@@ -427,10 +427,10 @@ squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol "[") (symbol "]")
 
 doEnd :: Parser a -> Parser a
-doEnd = between (symbol' "do") (symbol "end")
+doEnd = between (symbol' "do") (symbol' "end")
 
 fnEnd :: Parser a -> Parser a
-fnEnd = between (symbol' "fn") (symbol "end")
+fnEnd = between (symbol' "fn") (symbol' "end")
 
 sigilContents :: Parser String
 sigilContents =
@@ -588,7 +588,7 @@ exprParser :: Parser EExpr
 exprParser = between spaceConsumer eof parseExpr
 
 parseBlock :: Parser EExpr
-parseBlock = Block <$> try parseExpr `sepEndBy` blockSep
+parseBlock = Block <$> try parseExpr `sepEndBy` (many blockSep)
 
 parseBlock2 :: Parser EExpr
 parseBlock2 =
@@ -706,3 +706,8 @@ readExpr e =
   case parse exprParser "" e of
     Left e -> putStr $ errorBundlePretty e
     Right ast -> putStr $ show ast ++ "\n"
+
+readSource :: String -> IO ()
+readSource p = do
+  source <- readFile p
+  (readExpr . T.pack) source
