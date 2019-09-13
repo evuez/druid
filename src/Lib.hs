@@ -18,6 +18,7 @@ import Data.Void
 import Text.Megaparsec
   ( ParseErrorBundle
   , Parsec
+  , (<?>)
   , between
   , choice
   , count
@@ -666,17 +667,20 @@ parseRightArrow = do
 
 parseExpr :: Parser EExpr
 parseExpr =
-  try parseStruct <|> try parseMap <|> parseSigil <|> parseTuple <|> parseList <|>
-  parseBinary <|>
-  try parseFloat <|>
-  parseInteger <|>
-  parseAtom <|>
-  parseString <|>
-  parseCharlist <|>
-  try parseNonQualifiedCall <|>
-  try parseQualifiedCall <|>
-  parseVariable <|>
-  parseAlias
+  (try parseStruct <?> "struct") <|> (try parseMap <?> "map") <|>
+  (parseSigil <?> "sigil") <|>
+  (parseTuple <?> "tuple") <|>
+  (parseList <?> "list") <|>
+  (parseBinary <?> "binary") <|>
+  (try parseFloat <?> "float") <|>
+  (parseInteger <?> "integer") <|>
+  (parseAtom <?> "atom") <|>
+  (parseString <?> "string") <|>
+  (parseCharlist <?> "charlist") <|>
+  (try parseNonQualifiedCall <?> "non-qualified call") <|>
+  (try parseQualifiedCall <?> "qualified call") <|>
+  (parseVariable <?> "variable") <|>
+  (parseAlias <?> "alias")
 
 -- TODO: Clean up ltr / rtl / unary ops
 parseExpr' :: Parser EExpr
