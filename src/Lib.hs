@@ -59,6 +59,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
   , symbol
   )
 import Text.Megaparsec.Debug (dbg)
+import Text.Megaparsec.Error (errorBundlePretty)
 import Text.Megaparsec.Stream (Token)
 
 data EExpr
@@ -700,5 +701,8 @@ parseExpr = makeExprParser parseAny opsTable
 --
 -- REPL
 --
-readExpr :: T.Text -> Either ParseError EExpr
-readExpr = parse exprParser ""
+readExpr :: T.Text -> IO ()
+readExpr e =
+  case parse exprParser "" e of
+    Left e -> putStr $ errorBundlePretty e
+    Right ast -> putStr $ show ast ++ "\n"
