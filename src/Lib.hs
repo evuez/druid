@@ -3,9 +3,9 @@
 
 module Lib where
 
-import Control.Applicative ((<|>), empty, optional)
+import Control.Applicative ((<|>), empty, liftA2, optional)
 import Control.Exception (Exception, SomeException, fromException, throw)
-import Control.Monad ((<$!>), void)
+import Control.Monad (MonadPlus, (<$!>), void)
 import Control.Monad.Combinators.Expr (makeExprParser)
 import qualified Control.Monad.Combinators.Expr as E
   ( Operator(InfixL, InfixR, Prefix)
@@ -282,6 +282,9 @@ showEnv :: Env -> T.Text
 showEnv env =
   T.concat $
   M.foldrWithKey (\k v a -> "(" : k : " " : showExpr v : "), " : a) [] env
+
+sepEndBy2 :: MonadPlus f => f a -> f sep -> f [a]
+sepEndBy2 p sep = liftA2 (:) (p <* sep) (sepEndBy1 p sep)
 
 --
 -- Data
@@ -581,13 +584,17 @@ exprParser = between spaceConsumer eof parseExpr
 parseBlock :: Parser EExpr
 parseBlock = Block <$> try parseExpr `sepEndBy` blockSep
 
+parseBlock2 :: Parser EExpr
+parseBlock2 =
+  Block <$> try (parseExpr <* notFollowedBy rightArrow) `sepEndBy2` blockSep
+
 parseDoBlock :: Parser EExpr
 parseDoBlock = wrapper <$> doEnd parseBlock
   where
     wrapper x = List [Tuple [Atom "do", x]]
 
 parseFn :: Parser EExpr
-parseFn = Fn <$> fnEnd (many $ try parseRightArrow)
+parseFn = Fn <$> fnEnd (parseRightArrow `sepEndBy` blockSep)
 
 parseAlias :: Parser EExpr
 parseAlias = Alias <$> fmap T.pack <$> alias
@@ -662,7 +669,7 @@ parseRightArrow :: Parser EExpr
 parseRightArrow = do
   lhs <- parensArgs <|> spacesArgs'
   void $ rightArrow
-  rhs <- (try $ parseExpr <* notFollowedBy blockSep) <|> parseBlock
+  rhs <- try parseBlock2 <|> parseExpr
   return $ BinaryOp RightArrow (List lhs) rhs
 
 parseExpr :: Parser EExpr

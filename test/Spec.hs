@@ -253,6 +253,12 @@ main =
       it "parses an anonymous function declaration" $
         parse parseFn "" "fn :a -> :b end" `shouldParse`
         E.Fn [E.BinaryOp E.RightArrow (E.List [E.Atom "a"]) (E.Atom "b")]
+      it "parses an anonymous function declaration with multiple clauses" $
+        parse parseFn "" "fn :a -> :b\n:c -> :d end" `shouldParse`
+        E.Fn
+          [ E.BinaryOp E.RightArrow (E.List [E.Atom "a"]) (E.Atom "b")
+          , E.BinaryOp E.RightArrow (E.List [E.Atom "c"]) (E.Atom "d")
+          ]
     describe "expression parser" $ do
       it "parses an alias" $
         parse parseExpr "" "Some.Alias" `shouldParse` E.Alias ["Some", "Alias"]
