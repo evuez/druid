@@ -24,6 +24,7 @@ import Text.Megaparsec
   , count'
   , endBy
   , eof
+  , lookAhead
   , many
   , manyTill
   , notFollowedBy
@@ -32,6 +33,7 @@ import Text.Megaparsec
   , sepBy
   , sepBy1
   , sepEndBy
+  , sepEndBy1
   , skipCount
   , try
   )
@@ -61,30 +63,32 @@ import Text.Megaparsec.Stream (Token)
 data EExpr
   = Atom T.Text
   | Alias [T.Text]
-  | Integer Integer
-  | Float Float
-  | String T.Text
-  | Charlist T.Text
-  | Map [(EExpr, EExpr)]
-  | Struct { alias' :: EExpr
-           , map :: [(EExpr, EExpr)] }
-  | Tuple [EExpr]
-  | List [EExpr]
   | Binary [EExpr]
-  | Sigil { ident :: Char
-          , contents :: T.Text
-          , modifiers :: [Char] }
-  | Variable T.Text
-  | QualifiedCall { alias' :: EExpr
-                  , name :: T.Text
-                  , args :: [EExpr] }
-  | NonQualifiedCall { name :: T.Text
-                     , args :: [EExpr] }
   | BinaryOp Operator
              EExpr
              EExpr
+  | Block [EExpr]
+  | Charlist T.Text
+  | Float Float
+  | Fn [EExpr]
+  | Integer Integer
+  | List [EExpr]
+  | Map [(EExpr, EExpr)]
+  | NonQualifiedCall { name :: T.Text
+                     , args :: [EExpr] }
+  | QualifiedCall { alias' :: EExpr
+                  , name :: T.Text
+                  , args :: [EExpr] }
+  | Sigil { ident :: Char
+          , contents :: T.Text
+          , modifiers :: [Char] }
+  | String T.Text
+  | Struct { alias' :: EExpr
+           , map :: [(EExpr, EExpr)] }
+  | Tuple [EExpr]
   | UnaryOp Operator
             EExpr
+  | Variable T.Text
   deriving (Typeable, Eq)
 
 data Operator
@@ -127,6 +131,7 @@ data Operator
   | Product
   | Range
   | RegexEqual
+  | RightArrow
   | ShiftLeft
   | ShiftRight
   | SpecType
@@ -158,6 +163,8 @@ showExpr :: EExpr -> T.Text
 showExpr (Atom atom) = T.concat [":", atom]
 showExpr (Alias alias') =
   T.concat ["{:__aliases__, [], [:", T.intercalate ", :" alias', "]}"]
+showExpr (Block exprs) =
+  T.concat ["{:__block__, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (Integer integer) = T.pack $ show integer
 showExpr (Float float) = T.pack $ show float
 showExpr (String text) = T.concat ["\"", text, "\""]
@@ -214,6 +221,8 @@ showExpr (NonQualifiedCall name args) =
 showExpr (BinaryOp op a b) =
   T.concat ["{:", showOp op, ", [], [", showExpr a, ", ", showExpr b, "]}"]
 showExpr (UnaryOp op a) = T.concat [showOp op, showExpr a]
+showExpr (Fn exprs) =
+  T.concat ["{:fn, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 
 showOp :: Operator -> T.Text
 showOp And = "&&"
@@ -255,6 +264,7 @@ showOp PipeRight = "|>"
 showOp Product = "*"
 showOp Range = ".."
 showOp RegexEqual = "=~"
+showOp RightArrow = "->"
 showOp ShiftLeft = "<<<"
 showOp ShiftRight = ">>>"
 showOp SpecType = "::"
@@ -409,6 +419,9 @@ squareBrackets = between (symbol "[") (symbol "]")
 doEnd :: Parser a -> Parser a
 doEnd = between (symbol' "do") (symbol "end")
 
+fnEnd :: Parser a -> Parser a
+fnEnd = between (symbol' "fn") (symbol "end")
+
 sigilContents :: Parser String
 sigilContents =
   sigilDelimiters '(' ')' <|> sigilDelimiters '{' '}' <|>
@@ -437,6 +450,9 @@ variable = lexeme identifier
 
 semicolon :: Parser T.Text
 semicolon = symbol ";"
+
+blockSep :: Parser T.Text
+blockSep = semicolon <|> lexeme C.eol
 
 identifier :: Parser String
 identifier = p >>= check
@@ -503,6 +519,9 @@ aliasChunk =
       upper <- C.upperChar
       return upper
 
+rightArrow :: Parser T.Text
+rightArrow = symbol' "->"
+
 --
 -- Parser
 --
@@ -545,6 +564,9 @@ spacesArgs = do
     Just doBlock' -> return $ args ++ [doBlock']
     Nothing -> return args
 
+spacesArgs' :: Parser [EExpr]
+spacesArgs' = commaSeparated1 parseExpr
+
 commaSeparated :: Parser a -> Parser [a]
 commaSeparated parser = parser `sepBy` (lexeme $ C.char ',')
 
@@ -555,13 +577,16 @@ commaSeparated1 parser = parser `sepBy1` (lexeme $ C.char ',')
 exprParser :: Parser EExpr
 exprParser = between spaceConsumer eof parseExpr
 
-parseBlock :: Parser [EExpr]
-parseBlock = try parseExpr `sepEndBy` (semicolon <|> lexeme C.eol)
+parseBlock :: Parser EExpr
+parseBlock = Block <$> try parseExpr `sepEndBy` blockSep
 
 parseDoBlock :: Parser EExpr
 parseDoBlock = wrapper <$> doEnd parseBlock
   where
-    wrapper x = List [Tuple [Atom "do", NonQualifiedCall "__block__" x]]
+    wrapper x = List [Tuple [Atom "do", x]]
+
+parseFn :: Parser EExpr
+parseFn = Fn <$> fnEnd (many $ try parseRightArrow)
 
 parseAlias :: Parser EExpr
 parseAlias = Alias <$> fmap T.pack <$> alias
@@ -631,6 +656,13 @@ parseQualifiedCall = do
   name <- T.pack <$> (identifier <|> strictString <|> strictCharlist)
   args <- parensArgs <|> spacesArgs
   return $ QualifiedCall alias' name args
+
+parseRightArrow :: Parser EExpr
+parseRightArrow = do
+  lhs <- parensArgs <|> spacesArgs'
+  void $ rightArrow
+  rhs <- (try $ parseExpr <* notFollowedBy blockSep) <|> parseBlock
+  return $ BinaryOp RightArrow (List lhs) rhs
 
 parseExpr :: Parser EExpr
 parseExpr =
