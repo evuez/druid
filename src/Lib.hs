@@ -324,7 +324,7 @@ opsTable =
     , prefix "~~~" BitwiseNot
     ]
   , [infixl' "*" Product, infixl' "/" Division]
-  , [infixlNotFollowedBy "+" Sum "+", infixlNotFollowedBy "-" Subtraction "-"]
+  , [infixlNotFollowedBy "+" Sum "+", infixlNotFollowedBy "-" Subtraction ">-"]
   , [ infixr' "++" Concat
     , infixr' "--" Difference
     , infixr' ".." Range
@@ -343,7 +343,7 @@ opsTable =
     , infixl' "<|>" ChevronPipeChevron
     ]
   , [ infixlNotFollowedBy "<" LessThan "-="
-    , infixlNotFollowedBy ">" GreaterThan "="
+    , infixlNotFollowedBy ">" GreaterThan ">="
     , infixl' "<=" LessThanOrEqual
     , infixl' ">=" GreaterThanOrEqual
     ]
@@ -361,7 +361,7 @@ opsTable =
     , infixl' "|||" BitwiseOr
     , infixl' "or" BooleanOr
     ]
-  , [infixr' "=" Assignment]
+  , [infixrNotFollowedBy "=" Assignment ">"]
   , [prefix "&" Capture]
   , [infixr' "|" Pipe]
   , [infixr' "::" SpecType]
@@ -381,6 +381,10 @@ infixr' name f = E.InfixR (BinaryOp f <$ symbol name)
 infixlNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
 infixlNotFollowedBy name f chars =
   E.InfixL (BinaryOp f <$ try (symbol name <* notFollowedBy (oneOf chars)))
+
+infixrNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
+infixrNotFollowedBy name f chars =
+  E.InfixR (BinaryOp f <$ try (symbol name <* notFollowedBy (oneOf chars)))
 
 --
 -- Lexer
@@ -673,8 +677,8 @@ parseRightArrow = do
   rhs <- try parseBlock2 <|> parseExpr
   return $ BinaryOp RightArrow (List lhs) rhs
 
-parseExpr :: Parser EExpr
-parseExpr =
+parseAny :: Parser EExpr
+parseAny =
   (try parseStruct <?> "struct") <|> (try parseMap <?> "map") <|>
   (parseSigil <?> "sigil") <|>
   (parseTuple <?> "tuple") <|>
@@ -690,9 +694,8 @@ parseExpr =
   (parseVariable <?> "variable") <|>
   (parseAlias <?> "alias")
 
--- TODO: Clean up ltr / rtl / unary ops
-parseExpr' :: Parser EExpr
-parseExpr' = makeExprParser parseExpr opsTable
+parseExpr :: Parser EExpr
+parseExpr = makeExprParser parseAny opsTable
 
 --
 -- REPL
