@@ -209,9 +209,9 @@ showExpr (Struct alias' keyValues) =
     ]
 showExpr (QualifiedCall alias' name args) =
   T.concat
-    [ "{:., [], [{:"
+    [ "{:., [], ["
     , showExpr alias'
-    , ", [], Elixir}, :"
+    , ", :"
     , name
     , "]}, [], ["
     , T.intercalate ", " $ showExpr <$> args
@@ -221,7 +221,8 @@ showExpr (NonQualifiedCall name args) =
   T.concat ["{:", name, ", [], [", T.intercalate ", " $ showExpr <$> args, "]}"]
 showExpr (BinaryOp op a b) =
   T.concat ["{:", showOp op, ", [], [", showExpr a, ", ", showExpr b, "]}"]
-showExpr (UnaryOp op a) = T.concat [showOp op, showExpr a]
+showExpr (UnaryOp op a) =
+  T.concat ["{:", showOp op, ", [], [", showExpr a, "]}"]
 showExpr (Fn exprs) =
   T.concat ["{:fn, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
 
