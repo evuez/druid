@@ -595,7 +595,10 @@ exprParser :: Parser EExpr
 exprParser = between spaceConsumer eof parseExpr
 
 parseBlock :: Parser EExpr
-parseBlock = Block <$> try parseExpr `sepEndBy` (many blockSep)
+parseBlock = Block <$> (clauses <|> exprs)
+  where
+    exprs = try parseExpr `sepEndBy` (many blockSep)
+    clauses = try parseRightArrow `sepEndBy1` (many blockSep)
 
 parseBlock2 :: Parser EExpr
 parseBlock2 =
@@ -607,7 +610,7 @@ parseDoBlock = wrapper <$> doEnd parseBlock
     wrapper x = List [Tuple [Atom "do", x]]
 
 parseFn :: Parser EExpr
-parseFn = Fn <$> fnEnd (parseRightArrow `sepEndBy` blockSep)
+parseFn = Fn <$> fnEnd (try parseRightArrow `sepEndBy` blockSep)
 
 parseAlias :: Parser EExpr
 parseAlias = Alias <$> fmap T.pack <$> alias
@@ -699,6 +702,7 @@ parseAny =
   (parseCharlist <?> "charlist") <|>
   (try parseNonQualifiedCall <?> "non-qualified call") <|>
   (try parseQualifiedCall <?> "qualified call") <|>
+  (parseFn <?> "fn") <|>
   (parseVariable <?> "variable") <|>
   (parseAlias <?> "alias")
 

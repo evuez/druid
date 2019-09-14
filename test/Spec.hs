@@ -587,6 +587,12 @@ main =
           E.Block [(E.Integer 1), (E.Integer 2)]
         parse parseBlock "" "1 \n 2" `shouldParse`
           E.Block [(E.Integer 1), (E.Integer 2)]
+      it "parses -> clauses" $ do
+        parse parseBlock "" ":a -> 1\n:b -> 2" `shouldParse`
+          E.Block
+            [ E.BinaryOp E.RightArrow (E.List [E.Atom "a"]) (E.Integer 1)
+            , E.BinaryOp E.RightArrow (E.List [E.Atom "b"]) (E.Integer 2)
+            ]
     describe "function call parser" $ do
       it "parses arguments separated by new lines" $
         parse exprParser "" "func(1,\n2)" `shouldParse`
