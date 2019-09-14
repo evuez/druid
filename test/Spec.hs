@@ -2,7 +2,8 @@
 
 import qualified Lib as E (EExpr(..), Operator(..))
 import Lib
-  ( listKeywords
+  ( exprParser
+  , listKeywords
   , mapKeywords
   , parseAlias
   , parseAtom
@@ -585,10 +586,35 @@ main =
           E.Block [(E.Integer 1), (E.Integer 2)]
     describe "function call parser" $ do
       it "parses arguments separated by new lines" $
-        parse parseExpr "" "func(1,\n2)" `shouldParse`
+        parse exprParser "" "func(1,\n2)" `shouldParse`
         E.NonQualifiedCall
         {E.name = "func", E.args = [E.Integer 1, E.Integer 2]}
       it "parses spaced arguments separated by new lines" $
-        parse parseExpr "" "func 1,\n2" `shouldParse`
+        parse exprParser "" "func 1,\n2" `shouldParse`
         E.NonQualifiedCall
         {E.name = "func", E.args = [E.Integer 1, E.Integer 2]}
+      it "parses keywords with no brackets as last arguments" $ do
+        parse exprParser "" "func(1, a: 2, b: 3)" `shouldParse`
+          E.NonQualifiedCall
+          { E.name = "func"
+          , E.args =
+              [ E.Integer 1
+              , E.List
+                  [ E.Tuple [E.Atom "a", E.Integer 2]
+                  , E.Tuple [E.Atom "b", E.Integer 3]
+                  ]
+              ]
+          }
+        parse exprParser "" "func 1, a: 2, b: 3" `shouldParse`
+          E.NonQualifiedCall
+          { E.name = "func"
+          , E.args =
+              [ E.Integer 1
+              , E.List
+                  [ E.Tuple [E.Atom "a", E.Integer 2]
+                  , E.Tuple [E.Atom "b", E.Integer 3]
+                  ]
+              ]
+          }
+      it "does not parse keywords with no brackets as intermediate arguments" $
+        parse exprParser "" `shouldFailOn` "func(1, a: 2, 3)"

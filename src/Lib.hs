@@ -456,7 +456,7 @@ rword w =
   lexeme . try $ C.string w *> notFollowedBy (C.lowerChar <|> C.char '_')
 
 variable :: Parser String
-variable = lexeme identifier
+variable = lexeme $ identifier <* notFollowedBy (C.char ':')
 
 semicolon :: Parser T.Text
 semicolon = symbol ";"
@@ -563,16 +563,20 @@ listKeywords :: Parser EExpr
 listKeywords = keywords (\k v -> Tuple [k, v])
 
 parensArgs :: Parser [EExpr]
-parensArgs = parens (commaSeparated parseExpr)
+parensArgs = parens (commaSeparated $ try parseExpr <|> keywordArgs)
+  where
+    keywordArgs = List <$> commaSeparated1 listKeywords
 
 spacesArgs :: Parser [EExpr]
 spacesArgs = do
   void $ C.char ' '
-  args <- commaSeparated1 parseExpr
+  args <- commaSeparated1 $ try parseExpr <|> keywordArgs
   doBlock <- optional parseDoBlock
   case doBlock of
     Just doBlock' -> return $ args ++ [doBlock']
     Nothing -> return args
+  where
+    keywordArgs = List <$> commaSeparated1 listKeywords
 
 spacesArgs' :: Parser [EExpr]
 spacesArgs' = commaSeparated1 parseExpr
