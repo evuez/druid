@@ -120,6 +120,9 @@ main =
         parse parseString "" "\"a string\"" `shouldParse` E.String "a string"
       it "parses an empty string" $
         parse parseString "" "\"\"" `shouldParse` E.String ""
+      it "parses a multi-line string" $
+        parse parseString "" "\"\"\"a\n\"string\"\"\"" `shouldParse`
+        E.String "a\n\"string"
       it "parses a charlist" $
         parse parseCharlist "" "'a charlist'" `shouldParse`
         E.Charlist "a charlist"

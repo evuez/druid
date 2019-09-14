@@ -483,6 +483,9 @@ string = lexeme strictString
 strictString :: Parser String
 strictString = C.char '"' *> manyTill L.charLiteral (C.char '"')
 
+multiString :: Parser String
+multiString = C.string "\"\"\"" *> manyTill L.charLiteral (C.string "\"\"\"")
+
 charlist :: Parser String
 charlist = lexeme strictCharlist
 
@@ -647,7 +650,7 @@ parseAtom :: Parser EExpr
 parseAtom = Atom . T.pack <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
 
 parseString :: Parser EExpr
-parseString = String . T.pack <$!> string
+parseString = String . T.pack <$!> (try multiString <|> string)
 
 parseCharlist :: Parser EExpr
 parseCharlist = Charlist . T.pack <$!> charlist
