@@ -402,8 +402,7 @@ main =
       it "parses the + prefix" $
         parse parseExpr "" "+1" `shouldParse` E.UnaryOp E.Id (E.Integer 1)
       it "parses the - prefix" $
-        parse parseExpr "" "-1" `shouldParse`
-        E.UnaryOp E.Negation (E.Integer 1)
+        parse parseExpr "" "-1" `shouldParse` E.UnaryOp E.Negation (E.Integer 1)
       it "parses !" $
         parse parseExpr "" "!true" `shouldParse`
         E.UnaryOp E.Bang (E.Atom "true")
@@ -584,3 +583,12 @@ main =
           E.Block [(E.Integer 1), (E.Integer 2)]
         parse parseBlock "" "1 \n 2" `shouldParse`
           E.Block [(E.Integer 1), (E.Integer 2)]
+    describe "function call parser" $ do
+      it "parses arguments separated by new lines" $
+        parse parseExpr "" "func(1,\n2)" `shouldParse`
+        E.NonQualifiedCall
+        {E.name = "func", E.args = [E.Integer 1, E.Integer 2]}
+      it "parses spaced arguments separated by new lines" $
+        parse parseExpr "" "func 1,\n2" `shouldParse`
+        E.NonQualifiedCall
+        {E.name = "func", E.args = [E.Integer 1, E.Integer 2]}

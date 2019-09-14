@@ -578,10 +578,10 @@ spacesArgs' :: Parser [EExpr]
 spacesArgs' = commaSeparated1 parseExpr
 
 commaSeparated :: Parser a -> Parser [a]
-commaSeparated parser = parser `sepBy` (lexeme $ C.char ',')
+commaSeparated parser = parser `sepBy` (symbol' ",")
 
 commaSeparated1 :: Parser a -> Parser [a]
-commaSeparated1 parser = parser `sepBy1` (lexeme $ C.char ',')
+commaSeparated1 parser = parser `sepBy1` (symbol' ",")
 
 -- Parsers
 exprParser :: Parser EExpr
