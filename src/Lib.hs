@@ -639,9 +639,21 @@ parseBlock2 =
   (many blockSep)
 
 parseDoBlock :: Parser EExpr
-parseDoBlock = wrapper <$> doEnd parseBlock
+parseDoBlock = do
+  doBlock <-
+    doEnd $ do
+      block <- parseBlock
+      alts <- optional $ many (wrapper <$> alts <*> parseBlock)
+      return $
+        case alts of
+          Just alts' -> (wrapper "do" block) : alts'
+          Nothing -> [wrapper "do" block]
+  return $ List doBlock
   where
-    wrapper x = List [Tuple [Atom "do", x]]
+    alts =
+      symbol' "catch" <|> symbol' "rescue" <|> symbol' "after" <|>
+      symbol' "else"
+    wrapper f x = Tuple [Atom f, x]
 
 parseFn :: Parser EExpr
 parseFn = Fn <$> fnEnd (try parseRightArrow `sepEndBy` blockSep)

@@ -587,11 +587,26 @@ main =
           E.Block [(E.Integer 1), (E.Integer 2)]
         parse parseBlock "" "1 \n 2" `shouldParse`
           E.Block [(E.Integer 1), (E.Integer 2)]
-      it "parses -> clauses" $ do
+      it "parses -> clauses" $
         parse parseBlock "" ":a -> 1\n:b -> 2" `shouldParse`
+        E.Block
+          [ E.BinaryOp E.RightArrow (E.List [E.Atom "a"]) (E.Integer 1)
+          , E.BinaryOp E.RightArrow (E.List [E.Atom "b"]) (E.Integer 2)
+          ]
+      it "parses -> clauses with sub-blocks" $ do
+        parse parseBlock "" ":a ->\n1\n\n2" `shouldParse`
           E.Block
-            [ E.BinaryOp E.RightArrow (E.List [E.Atom "a"]) (E.Integer 1)
-            , E.BinaryOp E.RightArrow (E.List [E.Atom "b"]) (E.Integer 2)
+            [ E.BinaryOp
+                E.RightArrow
+                (E.List [E.Atom "a"])
+                (E.Block [E.Integer 1, E.Integer 2])
+            ]
+        parse parseBlock "" ":a ->\na()\n\n2" `shouldParse`
+          E.Block
+            [ E.BinaryOp
+                E.RightArrow
+                (E.List [E.Atom "a"])
+                (E.Block [E.NonQualifiedCall "a" [], E.Integer 2])
             ]
     describe "function call parser" $ do
       it "parses arguments separated by new lines" $
@@ -627,3 +642,92 @@ main =
           }
       it "does not parse keywords with no brackets as intermediate arguments" $
         parse exprParser "" `shouldFailOn` "func(1, a: 2, 3)"
+    describe "parens and EOL parsing" $ do
+      it "parses expressions wrapped in parens" $ do
+        parse parseExpr "" "((1) + (2))" `shouldParse`
+          E.BinaryOp E.Sum (E.Integer 1) (E.Integer 2)
+        parse parseExpr "" "([1 + (2)])" `shouldParse`
+          E.List [E.BinaryOp E.Sum (E.Integer 1) (E.Integer 2)]
+      it "parses EOL inside expressions" $ do
+        parse parseExpr "" "(\n(1)\n+\n(2)\n)" `shouldParse`
+          E.BinaryOp E.Sum (E.Integer 1) (E.Integer 2)
+        parse parseExpr "" "a =\n 1" `shouldParse`
+          E.BinaryOp E.Assignment (E.Variable "a") (E.Integer 1)
+    describe "| operator parser" $ do
+      it "parses a map update" $
+        parse parseExpr "" "%{a | b: 1}" `shouldParse`
+        E.MapUpdate (E.Variable "a") [(E.Atom "b", E.Integer 1)]
+      it "parses a struct update" $
+        parse parseExpr "" "%Struct{a | b: 1}" `shouldParse`
+        E.StructUpdate
+          (E.Alias ["Struct"])
+          (E.Variable "a")
+          [(E.Atom "b", E.Integer 1)]
+      it "parses a list cons" $
+        parse parseExpr "" "[1 | [2, 3]]" `shouldParse`
+        E.List
+          [E.BinaryOp E.Pipe (E.Integer 1) (E.List [E.Integer 2, E.Integer 3])]
+    describe "map parser" $ do
+      it "parses key / values separated by new lines" $
+        parse parseExpr "" "%{\n1 => 2,\n3 => 4\n }" `shouldParse`
+        E.Map [(E.Integer 1, E.Integer 2), (E.Integer 3, E.Integer 4)]
+      it "parses keywords-style key / values separated by new lines" $
+        parse parseExpr "" "%{\na: 1,\nb: 2\n }" `shouldParse`
+        E.Map [(E.Atom "a", E.Integer 1), (E.Atom "b", E.Integer 2)]
+    describe "do block parser" $ do
+      it "parses a do block with an else clause" $
+        parse parseExpr "" "case :a do\n:b\nelse\n:c\nend" `shouldParse`
+        E.NonQualifiedCall
+          "case"
+          [ E.Atom "a"
+          , E.List
+              [ E.Tuple [E.Atom "do", E.Block [E.Atom "b"]]
+              , E.Tuple [E.Atom "else", E.Block [E.Atom "c"]]
+              ]
+          ]
+      it "parses a do block with a catch clause" $
+        parse parseExpr "" "case :a do\n:b\ncatch\n:c\nend" `shouldParse`
+        E.NonQualifiedCall
+          "case"
+          [ E.Atom "a"
+          , E.List
+              [ E.Tuple [E.Atom "do", E.Block [E.Atom "b"]]
+              , E.Tuple [E.Atom "catch", E.Block [E.Atom "c"]]
+              ]
+          ]
+      it "parses a do block with a rescue clause" $
+        parse parseExpr "" "case :a do\n:b\nrescue\n:c\nend" `shouldParse`
+        E.NonQualifiedCall
+          "case"
+          [ E.Atom "a"
+          , E.List
+              [ E.Tuple [E.Atom "do", E.Block [E.Atom "b"]]
+              , E.Tuple [E.Atom "rescue", E.Block [E.Atom "c"]]
+              ]
+          ]
+      it "parses a do block with an after clause" $
+        parse parseExpr "" "case :a do\n:b\nafter\n:c\nend" `shouldParse`
+        E.NonQualifiedCall
+          "case"
+          [ E.Atom "a"
+          , E.List
+              [ E.Tuple [E.Atom "do", E.Block [E.Atom "b"]]
+              , E.Tuple [E.Atom "after", E.Block [E.Atom "c"]]
+              ]
+          ]
+      it "parses a do block with multiple clauses" $
+        parse
+          parseExpr
+          ""
+          "case :a do\n:b\nelse\n:c\ncatch\n:d\nrescue\n:e\nafter\n:f\nend" `shouldParse`
+        E.NonQualifiedCall
+          "case"
+          [ E.Atom "a"
+          , E.List
+              [ E.Tuple [E.Atom "do", E.Block [E.Atom "b"]]
+              , E.Tuple [E.Atom "else", E.Block [E.Atom "c"]]
+              , E.Tuple [E.Atom "catch", E.Block [E.Atom "d"]]
+              , E.Tuple [E.Atom "rescue", E.Block [E.Atom "e"]]
+              , E.Tuple [E.Atom "after", E.Block [E.Atom "f"]]
+              ]
+          ]
