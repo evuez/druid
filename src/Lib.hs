@@ -408,6 +408,9 @@ space = void $ oneOf (" \t" :: [Char])
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
 
+lexeme' :: Parser a -> Parser a
+lexeme' = L.lexeme spaceConsumer'
+
 symbol :: T.Text -> Parser T.Text
 symbol = L.symbol spaceConsumer
 
@@ -415,7 +418,7 @@ symbol' :: T.Text -> Parser T.Text
 symbol' = L.symbol spaceConsumer'
 
 parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
+parens = between (symbol' "(") (symbol' ")")
 
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
@@ -566,7 +569,7 @@ listKeywords :: Parser EExpr
 listKeywords = keywords (\k v -> Tuple [k, v])
 
 parensArgs :: Parser [EExpr]
-parensArgs = parens (commaSeparated $ try parseExpr <|> keywordArgs)
+parensArgs = parens $ lexeme' (commaSeparated $ try parseExpr <|> keywordArgs)
   where
     keywordArgs = List <$> commaSeparated1 listKeywords
 
