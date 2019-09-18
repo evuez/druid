@@ -36,6 +36,7 @@ import Text.Megaparsec
   , sepEndBy
   , sepEndBy1
   , skipCount
+  , some
   , try
   )
 import qualified Text.Megaparsec.Char as C
@@ -76,6 +77,8 @@ data EExpr
   | Integer Integer
   | List [EExpr]
   | Map [(EExpr, EExpr)]
+  | MapUpdate { expr :: EExpr
+              , updates :: [(EExpr, EExpr)] }
   | NonQualifiedCall { name :: T.Text
                      , args :: [EExpr] }
   | QualifiedCall { alias' :: EExpr
@@ -87,6 +90,9 @@ data EExpr
   | String T.Text
   | Struct { alias' :: EExpr
            , map :: [(EExpr, EExpr)] }
+  | StructUpdate { alias' :: EExpr
+                 , expr :: EExpr
+                 , updates :: [(EExpr, EExpr)] }
   | Tuple [EExpr]
   | UnaryOp Operator
             EExpr
@@ -198,6 +204,16 @@ showExpr (Map keyValues) =
       keyValues
     , "}"
     ]
+showExpr (MapUpdate expr updates) =
+  T.concat
+    [ "{:%{}, [], [{:|, [], ["
+    , showExpr expr
+    , ", ["
+    , T.intercalate ", " $
+      (\(k, v) -> T.concat ["{", showExpr k, ", ", showExpr v, "}"]) <$>
+      updates
+    , "]]}]}"
+    ]
 showExpr (Struct alias' keyValues) =
   T.concat
     [ "%"
@@ -207,6 +223,18 @@ showExpr (Struct alias' keyValues) =
       (\(k, v) -> T.concat [showExpr k, " => ", showExpr v]) <$>
       keyValues
     , "}"
+    ]
+showExpr (StructUpdate alias' expr updates) =
+  T.concat
+    [ "{:%, [], [{:__aliases__, [], [:"
+    , showExpr alias'
+    , "]}, {:%{}, [], [{:|, [], ["
+    , showExpr expr
+    , ", ["
+    , T.intercalate ", " $
+      (\(k, v) -> T.concat ["{", showExpr k, ", ", showExpr v, "}"]) <$>
+      updates
+    , "]]}]}]}"
     ]
 showExpr (QualifiedCall alias' name args) =
   T.concat
@@ -421,7 +449,7 @@ parens :: Parser a -> Parser a
 parens = between (symbol' "(") (symbol' ")")
 
 braces :: Parser a -> Parser a
-braces = between (symbol "{") (symbol "}")
+braces = between (symbol' "{") (symbol' "}")
 
 chevrons :: Parser a -> Parser a
 chevrons = between (symbol "<<") (symbol ">>")
@@ -547,6 +575,7 @@ keyValue keyParser = do
   key <- keyParser
   void $ symbol "=>"
   value <- parseExpr
+  void $ optional (lexeme C.eol)
   return (key, value)
 
 regularKeyValue :: Parser (EExpr, EExpr)
@@ -560,6 +589,7 @@ keywords wrapper = do
   key <- Atom . T.pack <$!> (quotedAtomBody <|> unquotedAtomBody)
   void $ symbol ":"
   value <- parseExpr
+  void $ optional (lexeme C.eol)
   return $ wrapper key value
 
 mapKeywords :: Parser (EExpr, EExpr)
@@ -645,13 +675,38 @@ parseMap = do
   Map <$>
     braces (try (commaSeparated regularKeyValue) <|> commaSeparated mapKeywords)
 
+parseMapUpdate = do
+  void $ symbol "%"
+  mapUpdate <-
+    braces $ do
+      lhs <- parseMapExpr
+      void $ symbol' "|"
+      rhs <- try (commaSeparated regularKeyValue) <|> commaSeparated mapKeywords
+      return $ MapUpdate lhs rhs
+  return mapUpdate
+
 parseStruct :: Parser EExpr
 parseStruct = do
   void $ symbol "%"
   alias' <- parseAlias
-  let arrow = commaSeparated1 atomKeyValue
-      keywords = commaSeparated mapKeywords
   Struct alias' <$> braces (try arrow <|> keywords)
+  where
+    arrow = commaSeparated1 atomKeyValue
+    keywords = commaSeparated mapKeywords
+
+parseStructUpdate = do
+  void $ symbol "%"
+  alias' <- parseAlias
+  mapUpdate <-
+    braces $ do
+      lhs <- parseMapExpr
+      void $ symbol' "|"
+      rhs <- try arrow <|> keywords
+      return $ StructUpdate alias' lhs rhs
+  return mapUpdate
+  where
+    arrow = commaSeparated1 atomKeyValue
+    keywords = commaSeparated mapKeywords
 
 parseAtom :: Parser EExpr
 parseAtom = Atom . T.pack <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
@@ -695,6 +750,8 @@ parseRightArrow = do
 parseAny :: Parser EExpr
 parseAny =
   (try parseStruct <?> "struct") <|> (try parseMap <?> "map") <|>
+  (try parseStructUpdate <?> "map update") <|>
+  (parseMapUpdate <?> "map update") <|>
   (parseSigil <?> "sigil") <|>
   (parseTuple <?> "tuple") <|>
   (parseList <?> "list") <|>
@@ -712,6 +769,14 @@ parseAny =
 
 parseExpr :: Parser EExpr
 parseExpr = makeExprParser (parens parseExpr <|> parseAny) opsTable
+
+-- Ugly hack to avoid parsing | as a binary op in structs and maps
+parseMapExpr :: Parser EExpr
+parseMapExpr =
+  makeExprParser (parens parseMapExpr <|> parseAny) opsTableWithNoPipe
+  where
+    opsTableWithNoPipe = xs ++ ys
+    (xs, (y:ys)) = splitAt 15 opsTable
 
 --
 -- REPL
