@@ -371,21 +371,21 @@ opsTable =
   ]
 
 prefix :: T.Text -> Operator -> E.Operator Parser EExpr
-prefix name f = E.Prefix (UnaryOp f <$ symbol name)
+prefix name f = E.Prefix (UnaryOp f <$ symbol' name)
 
 infixl' :: T.Text -> Operator -> E.Operator Parser EExpr
-infixl' name f = E.InfixL (BinaryOp f <$ symbol name)
+infixl' name f = E.InfixL (BinaryOp f <$ symbol' name)
 
 infixr' :: T.Text -> Operator -> E.Operator Parser EExpr
-infixr' name f = E.InfixR (BinaryOp f <$ symbol name)
+infixr' name f = E.InfixR (BinaryOp f <$ symbol' name)
 
 infixlNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
 infixlNotFollowedBy name f chars =
-  E.InfixL (BinaryOp f <$ try (symbol name <* notFollowedBy (oneOf chars)))
+  E.InfixL (BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
 
 infixrNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
 infixrNotFollowedBy name f chars =
-  E.InfixR (BinaryOp f <$ try (symbol name <* notFollowedBy (oneOf chars)))
+  E.InfixR (BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
 
 --
 -- Lexer
@@ -605,7 +605,8 @@ parseBlock = Block <$> (clauses <|> exprs)
 
 parseBlock2 :: Parser EExpr
 parseBlock2 =
-  Block <$> try (parseExpr <* notFollowedBy rightArrow) `sepEndBy2` blockSep
+  Block <$> try (parseExpr <* notFollowedBy rightArrow) `sepEndBy2`
+  (many blockSep)
 
 parseDoBlock :: Parser EExpr
 parseDoBlock = wrapper <$> doEnd parseBlock
@@ -710,7 +711,7 @@ parseAny =
   (parseAlias <?> "alias")
 
 parseExpr :: Parser EExpr
-parseExpr = makeExprParser parseAny opsTable
+parseExpr = makeExprParser (parens parseExpr <|> parseAny) opsTable
 
 --
 -- REPL
