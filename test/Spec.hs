@@ -609,8 +609,10 @@ main =
                 (E.Block [E.NonQualifiedCall "a" [], E.Integer 2])
             ]
       it "does not parse 1\\n|> 2 as a block" $ do
-        parse parseExpr "" "1\n|> 2" `shouldParse` E.BinaryOp E.PipeRight (E.Integer 1) (E.Integer 2)
-        parse parseExpr "" "1\n   |> 2" `shouldParse` E.BinaryOp E.PipeRight (E.Integer 1) (E.Integer 2)
+        parse parseExpr "" "1\n|> 2" `shouldParse`
+          E.BinaryOp E.PipeRight (E.Integer 1) (E.Integer 2)
+        parse parseExpr "" "1\n   |> 2" `shouldParse`
+          E.BinaryOp E.PipeRight (E.Integer 1) (E.Integer 2)
     describe "function call parser" $ do
       it "parses arguments separated by new lines" $
         parse exprParser "" "func(1,\n2)" `shouldParse`
@@ -734,3 +736,12 @@ main =
               , E.Tuple [E.Atom "after", E.Block [E.Atom "f"]]
               ]
           ]
+    describe "access parser" $ do
+      it "parses a[1] as an access call" $
+        parse parseExpr "" "a[1]" `shouldParse` E.Integer 1
+      it "parses %{}[1] as an access call" $
+        parse parseExpr "" "a[]" `shouldParse` E.Integer 1
+      it "parses %Struct{}[1] as an access call" $
+        parse parseExpr "" "a[]" `shouldParse` E.Integer 1
+      it "parses [][1] as an access call" $
+        parse parseExpr "" "a[]" `shouldParse` E.Integer 1

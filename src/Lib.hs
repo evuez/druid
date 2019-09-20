@@ -696,7 +696,7 @@ parseMapUpdate = do
   void $ symbol "%"
   mapUpdate <-
     braces $ do
-      lhs <- parseMapExpr
+      lhs <- lexeme' parseMapExpr
       void $ symbol' "|"
       rhs <- try (commaSeparated regularKeyValue) <|> commaSeparated mapKeywords
       return $ MapUpdate lhs rhs
@@ -716,7 +716,7 @@ parseStructUpdate = do
   alias' <- parseAlias
   mapUpdate <-
     braces $ do
-      lhs <- parseMapExpr
+      lhs <- lexeme' parseMapExpr
       void $ symbol' "|"
       rhs <- try arrow <|> keywords
       return $ StructUpdate alias' lhs rhs
