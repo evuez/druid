@@ -608,6 +608,9 @@ main =
                 (E.List [E.Atom "a"])
                 (E.Block [E.NonQualifiedCall "a" [], E.Integer 2])
             ]
+      it "does not parse 1\\n|> 2 as a block" $ do
+        parse parseExpr "" "1\n|> 2" `shouldParse` E.BinaryOp E.PipeRight (E.Integer 1) (E.Integer 2)
+        parse parseExpr "" "1\n   |> 2" `shouldParse` E.BinaryOp E.PipeRight (E.Integer 1) (E.Integer 2)
     describe "function call parser" $ do
       it "parses arguments separated by new lines" $
         parse exprParser "" "func(1,\n2)" `shouldParse`

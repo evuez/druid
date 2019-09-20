@@ -361,7 +361,7 @@ opsTable =
     ]
   , [infixl' "^^^" BitwiseXor]
   , [infixl' "in" In, infixl' "not in" NotIn]
-  , [ infixl' "|>" PipeRight
+  , [ infixlPrecededByEol "|>" PipeRight
     , infixl' "<<<" ShiftLeft
     , infixl' ">>>" ShiftRight
     , infixl' "<<~" DoubleChevronTilde
@@ -414,6 +414,12 @@ infixlNotFollowedBy name f chars =
 infixrNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
 infixrNotFollowedBy name f chars =
   E.InfixR (BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
+
+-- Differentiating multi-line expressions and blocks is a pain.
+infixlPrecededByEol :: T.Text -> Operator -> E.Operator Parser EExpr
+infixlPrecededByEol name f =
+  E.InfixL (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
+
 
 --
 -- Lexer
