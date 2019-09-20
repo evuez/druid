@@ -661,7 +661,7 @@ parseDoBlock = do
     wrapper f x = Tuple [Atom f, x]
 
 parseFn :: Parser EExpr
-parseFn = Fn <$> fnEnd (try parseRightArrow `sepEndBy` blockSep)
+parseFn = Fn <$> fnEnd (try parseRightArrow `sepEndBy` (many blockSep))
 
 parseAlias :: Parser EExpr
 parseAlias = Alias <$> fmap T.pack <$> alias
