@@ -420,7 +420,6 @@ infixlPrecededByEol :: T.Text -> Operator -> E.Operator Parser EExpr
 infixlPrecededByEol name f =
   E.InfixL (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
 
-
 --
 -- Lexer
 --
@@ -461,7 +460,7 @@ chevrons :: Parser a -> Parser a
 chevrons = between (symbol "<<") (symbol ">>")
 
 squareBrackets :: Parser a -> Parser a
-squareBrackets = between (symbol "[") (symbol "]")
+squareBrackets = between (symbol' "[") (symbol' "]")
 
 doEnd :: Parser a -> Parser a
 doEnd = between (symbol' "do") (symbol' "end")
