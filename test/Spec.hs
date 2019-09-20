@@ -738,10 +738,14 @@ main =
           ]
     describe "access parser" $ do
       it "parses a[1] as an access call" $
-        parse parseExpr "" "a[1]" `shouldParse` E.Integer 1
+        parse parseExpr "" "a[1]" `shouldParse`
+        E.QualifiedCall (E.Alias ["Access"]) "get" [E.Variable "a", E.Integer 1]
       it "parses %{}[1] as an access call" $
-        parse parseExpr "" "a[]" `shouldParse` E.Integer 1
+        parse parseExpr "" "%{}[1]" `shouldParse`
+        E.QualifiedCall (E.Alias ["Access"]) "get" [E.Map [], E.Integer 1]
       it "parses %Struct{}[1] as an access call" $
-        parse parseExpr "" "a[]" `shouldParse` E.Integer 1
-      it "parses [][1] as an access call" $
-        parse parseExpr "" "a[]" `shouldParse` E.Integer 1
+        parse parseExpr "" "%Struct{}[1]" `shouldParse`
+        E.QualifiedCall
+          (E.Alias ["Access"])
+          "get"
+          [E.Struct (E.Alias ["Struct"]) [], E.Integer 1]

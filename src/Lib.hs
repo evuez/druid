@@ -11,6 +11,7 @@ import qualified Control.Monad.Combinators.Expr as E
   ( Operator(InfixL, InfixR, Prefix)
   )
 import Control.Monad.Reader (MonadReader, ReaderT(..), ask, local)
+import Data.Char (isSpace)
 import qualified Data.Map as M (Map, foldrWithKey, fromList, insert, lookup)
 import qualified Data.Text as T (Text, concat, intercalate, pack, unpack)
 import Data.Typeable (Typeable)
@@ -37,6 +38,7 @@ import Text.Megaparsec
   , sepEndBy1
   , skipCount
   , some
+  , takeWhile1P
   , try
   )
 import qualified Text.Megaparsec.Char as C
@@ -764,8 +766,41 @@ parseRightArrow = do
   rhs <- try parseBlock2 <|> parseExpr
   return $ BinaryOp RightArrow (List lhs) rhs
 
+-- This is wrong in so many ways...
+parseAccess :: Parser EExpr
+parseAccess = do
+  void $
+    lookAhead
+      (takeWhile1P Nothing (not . (\c -> isSpace c || c == '[')) <* C.char '[')
+  expr <- parseAccessExpr
+  void $ C.char '['
+  index <- parseExpr
+  void $ C.char ']'
+  return $ QualifiedCall (Alias ["Access"]) "get" [expr, index]
+
 parseAny :: Parser EExpr
 parseAny =
+  (try parseAccess <?> "access") <|> (try parseStruct <?> "struct") <|>
+  (try parseMap <?> "map") <|>
+  (try parseStructUpdate <?> "map update") <|>
+  (parseMapUpdate <?> "map update") <|>
+  (parseSigil <?> "sigil") <|>
+  (parseTuple <?> "tuple") <|>
+  (parseList <?> "list") <|>
+  (parseBinary <?> "binary") <|>
+  (try parseFloat <?> "float") <|>
+  (parseInteger <?> "integer") <|>
+  (parseAtom <?> "atom") <|>
+  (parseString <?> "string") <|>
+  (parseCharlist <?> "charlist") <|>
+  (try parseNonQualifiedCall <?> "non-qualified call") <|>
+  (try parseQualifiedCall <?> "qualified call") <|>
+  (parseFn <?> "fn") <|>
+  (parseVariable <?> "variable") <|>
+  (parseAlias <?> "alias")
+
+parseAnyButAccess :: Parser EExpr
+parseAnyButAccess =
   (try parseStruct <?> "struct") <|> (try parseMap <?> "map") <|>
   (try parseStructUpdate <?> "map update") <|>
   (parseMapUpdate <?> "map update") <|>
@@ -786,6 +821,10 @@ parseAny =
 
 parseExpr :: Parser EExpr
 parseExpr = makeExprParser (parens parseExpr <|> parseAny) opsTable
+
+parseAccessExpr :: Parser EExpr
+parseAccessExpr =
+  makeExprParser (parens parseAccessExpr <|> parseAnyButAccess) opsTable
 
 -- Ugly hack to avoid parsing | as a binary op in structs and maps
 parseMapExpr :: Parser EExpr
