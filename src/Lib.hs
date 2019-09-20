@@ -611,11 +611,11 @@ parensArgs = parens $ lexeme' (commaSeparated $ try parseExpr <|> keywordArgs)
 spacesArgs :: Parser [EExpr]
 spacesArgs = do
   void $ C.char ' '
-  args <- commaSeparated1 $ try parseExpr <|> keywordArgs
-  doBlock <- optional parseDoBlock
-  case doBlock of
-    Just doBlock' -> return $ args ++ [doBlock']
-    Nothing -> return args
+  args <- commaSeparated $ try parseExpr <|> try keywordArgs
+  doBlock <- count' 0 1 parseDoBlock
+  case args ++ doBlock of
+    [] -> fail "missing params in function call"
+    args' -> return args'
   where
     keywordArgs = List <$> commaSeparated1 listKeywords
 
