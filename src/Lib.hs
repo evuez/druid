@@ -578,7 +578,7 @@ rightArrow = symbol' "->"
 keyValue :: Parser EExpr -> Parser (EExpr, EExpr)
 keyValue keyParser = do
   key <- keyParser
-  void $ symbol "=>"
+  void $ symbol' "=>"
   value <- parseExpr
   void $ optional (lexeme C.eol)
   return (key, value)
@@ -592,7 +592,7 @@ atomKeyValue = keyValue parseAtom
 keywords :: (EExpr -> EExpr -> b) -> Parser b
 keywords wrapper = do
   key <- Atom . T.pack <$!> (quotedAtomBody <|> unquotedAtomBody)
-  void $ symbol ":"
+  void $ symbol' ":"
   value <- parseExpr
   void $ optional (lexeme C.eol)
   return $ wrapper key value
