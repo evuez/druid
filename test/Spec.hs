@@ -26,7 +26,7 @@ import Lib
   , parseVariable
   )
 import Test.Hspec
-import Test.Hspec.Megaparsec (shouldFailOn, shouldParse)
+import Test.Hspec.Megaparsec (shouldFailOn, shouldParse, shouldSucceedOn)
 import Text.Megaparsec (parse)
 
 main :: IO ()
@@ -751,3 +751,8 @@ main =
           (E.Alias ["Access"])
           "get"
           [E.Struct (E.Alias ["Struct"]) [], E.Integer 1]
+    describe "misc" $ do
+      it "parses \"def a when a in ~w[b] do\\n1\\nend\"" $
+        parse parseExpr "" `shouldSucceedOn` "def a when b in ~W[c] do\n1\nend"
+      it "parses \"fn -> 1 end\"" $
+        parse parseExpr "" `shouldSucceedOn` "fn -> 1 end"

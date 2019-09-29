@@ -685,7 +685,7 @@ parseSigil = do
   void $ symbol "~"
   ident <- C.upperChar <|> C.lowerChar
   contents <- T.pack <$> sigilContents
-  modifiers <- many C.letterChar
+  modifiers <- lexeme $ many C.letterChar
   return $ Sigil ident contents modifiers
 
 parseMap :: Parser EExpr
@@ -761,10 +761,13 @@ parseQualifiedCall = do
 
 parseRightArrow :: Parser EExpr
 parseRightArrow = do
-  lhs <- parensArgs <|> spacesArgs'
+  void $ optional (C.char ' ')
+  lhs <- optional (try $ parensArgs <|> spacesArgs')
   void $ rightArrow
   rhs <- try parseBlock2 <|> parseExpr
-  return $ BinaryOp RightArrow (List lhs) rhs
+  case lhs of
+    Just lhs' -> return $ BinaryOp RightArrow (List lhs') rhs
+    Nothing -> return $ BinaryOp RightArrow (List []) rhs
 
 -- This is wrong in so many ways...
 parseAccess :: Parser EExpr
