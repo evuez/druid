@@ -549,7 +549,7 @@ main =
         parse parseExpr "" "a <- 1" `shouldParse`
         E.BinaryOp E.LeftArrow (E.Variable "a") (E.Integer 1)
       it "parses \\\\" $
-        parse parseExpr "" "a \\ 1" `shouldParse`
+        parse parseExpr "" "a \\\\ 1" `shouldParse`
         E.BinaryOp E.DefaultArg (E.Variable "a") (E.Integer 1)
       it "parses ->" $ do
         parse parseRightArrow "" ":a -> :b" `shouldParse`

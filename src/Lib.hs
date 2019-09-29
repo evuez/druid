@@ -394,10 +394,10 @@ opsTable =
     ]
   , [infixrNotFollowedBy "=" Assignment ">"]
   , [prefix "&" Capture]
-  , [infixr' "|" Pipe]
+  , [infixrPrecededByEol "|" Pipe]
   , [infixr' "::" SpecType]
-  , [infixr' "when" When]
-  , [infixl' "<-" LeftArrow, infixl' "\\" DefaultArg]
+  , [infixrPrecededByEol "when" When]
+  , [infixl' "<-" LeftArrow, infixl' "\\\\" DefaultArg]
   ]
 
 prefix :: T.Text -> Operator -> E.Operator Parser EExpr
@@ -421,6 +421,10 @@ infixrNotFollowedBy name f chars =
 infixlPrecededByEol :: T.Text -> Operator -> E.Operator Parser EExpr
 infixlPrecededByEol name f =
   E.InfixL (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
+
+infixrPrecededByEol :: T.Text -> Operator -> E.Operator Parser EExpr
+infixrPrecededByEol name f =
+  E.InfixR (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
 
 --
 -- Lexer
