@@ -563,6 +563,8 @@ main =
             E.RightArrow
             (E.List [E.Atom "a", E.Atom "b"])
             (E.Block [E.Atom "c", E.Atom "d"])
+        parse parseExpr "" "(:a -> :b)" `shouldParse`
+          E.BinaryOp E.RightArrow (E.List [E.Atom "a"]) (E.Atom "b")
     describe "block parser" $ do
       it "parses an empty expression" $ do
         parse parseBlock "" "" `shouldParse` E.Block []

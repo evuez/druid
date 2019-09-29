@@ -780,27 +780,6 @@ parseAccess = do
 
 parseAny :: Parser EExpr
 parseAny =
-  (try parseAccess <?> "access") <|> (try parseStruct <?> "struct") <|>
-  (try parseMap <?> "map") <|>
-  (try parseStructUpdate <?> "map update") <|>
-  (parseMapUpdate <?> "map update") <|>
-  (parseSigil <?> "sigil") <|>
-  (parseTuple <?> "tuple") <|>
-  (parseList <?> "list") <|>
-  (parseBinary <?> "binary") <|>
-  (try parseFloat <?> "float") <|>
-  (parseInteger <?> "integer") <|>
-  (parseAtom <?> "atom") <|>
-  (parseString <?> "string") <|>
-  (parseCharlist <?> "charlist") <|>
-  (try parseNonQualifiedCall <?> "non-qualified call") <|>
-  (try parseQualifiedCall <?> "qualified call") <|>
-  (parseFn <?> "fn") <|>
-  (parseVariable <?> "variable") <|>
-  (parseAlias <?> "alias")
-
-parseAnyButAccess :: Parser EExpr
-parseAnyButAccess =
   (try parseStruct <?> "struct") <|> (try parseMap <?> "map") <|>
   (try parseStructUpdate <?> "map update") <|>
   (parseMapUpdate <?> "map update") <|>
@@ -820,16 +799,25 @@ parseAnyButAccess =
   (parseAlias <?> "alias")
 
 parseExpr :: Parser EExpr
-parseExpr = makeExprParser (parens parseExpr <|> parseAny) opsTable
+parseExpr =
+  makeExprParser
+    ((try parseAccess <?> "access") <|> (try $ parens parseRightArrow) <|>
+     parens parseExpr <|>
+     parseAny)
+    opsTable
 
 parseAccessExpr :: Parser EExpr
 parseAccessExpr =
-  makeExprParser (parens parseAccessExpr <|> parseAnyButAccess) opsTable
+  makeExprParser
+    ((try $ parens parseRightArrow) <|> parens parseAccessExpr <|> parseAny)
+    opsTable
 
 -- Ugly hack to avoid parsing | as a binary op in structs and maps
 parseMapExpr :: Parser EExpr
 parseMapExpr =
-  makeExprParser (parens parseMapExpr <|> parseAny) opsTableWithNoPipe
+  makeExprParser
+    ((try $ parens parseRightArrow) <|> parens parseMapExpr <|> parseAny)
+    opsTableWithNoPipe
   where
     opsTableWithNoPipe = xs ++ ys
     (xs, (y:ys)) = splitAt 15 opsTable
