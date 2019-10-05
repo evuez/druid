@@ -466,7 +466,7 @@ chevrons :: Parser a -> Parser a
 chevrons = between (symbol "<<") (symbol ">>")
 
 squareBrackets :: Parser a -> Parser a
-squareBrackets = between (symbol' "[") (symbol' "]")
+squareBrackets = between (symbol' "[") (lexeme (optional C.eol) >> symbol' "]")
 
 doEnd :: Parser a -> Parser a
 doEnd = between (symbol' "do") (symbol' "end")

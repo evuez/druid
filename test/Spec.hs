@@ -756,3 +756,5 @@ main =
         parse parseExpr "" `shouldSucceedOn` "def a when b in ~W[c] do\n1\nend"
       it "parses \"fn -> 1 end\"" $
         parse parseExpr "" `shouldSucceedOn` "fn -> 1 end"
+      it "parses \"[1 | 2\\n ]\"" $
+        parse parseExpr "" `shouldSucceedOn` "[1 | 2\n ]"
