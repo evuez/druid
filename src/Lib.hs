@@ -780,9 +780,9 @@ parseAccess = do
     lookAhead
       (takeWhile1P Nothing (not . (\c -> isSpace c || c == '[')) <* C.char '[')
   expr <- parseAccessExpr
-  void $ C.char '['
+  void $ symbol "["
   index <- parseExpr
-  void $ C.char ']'
+  void $ symbol "]"
   return $ QualifiedCall (Alias ["Access"]) "get" [expr, index]
 
 parseAny :: Parser EExpr

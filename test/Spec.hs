@@ -758,3 +758,5 @@ main =
         parse parseExpr "" `shouldSucceedOn` "fn -> 1 end"
       it "parses \"[1 | 2\\n ]\"" $
         parse parseExpr "" `shouldSucceedOn` "[1 | 2\n ]"
+      it "parses \"a[:b] || :c\"" $
+        parse parseExpr "" `shouldSucceedOn` "a[:b] || :c"
