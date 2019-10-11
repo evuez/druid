@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Lib where
@@ -12,8 +11,8 @@ import qualified Control.Monad.Combinators.Expr as E
   )
 import Control.Monad.Reader (MonadReader, ReaderT(..), ask, local)
 import Data.Char (isSpace)
+import Data.List (intercalate)
 import qualified Data.Map as M (Map, foldrWithKey, fromList, insert, lookup)
-import qualified Data.Text as T (Text, concat, intercalate, pack, unpack)
 import Data.Typeable (Typeable)
 import Data.Void
 import Text.Megaparsec
@@ -66,14 +65,14 @@ import Text.Megaparsec.Error (errorBundlePretty)
 import Text.Megaparsec.Stream (Token)
 
 data EExpr
-  = Atom T.Text
-  | Alias [T.Text]
+  = Atom String
+  | Alias [String]
   | Binary [EExpr]
   | BinaryOp Operator
              EExpr
              EExpr
   | Block [EExpr]
-  | Charlist T.Text
+  | Charlist String
   | Float Float
   | Fn [EExpr]
   | Integer Integer
@@ -81,15 +80,15 @@ data EExpr
   | Map [(EExpr, EExpr)]
   | MapUpdate { expr :: EExpr
               , updates :: [(EExpr, EExpr)] }
-  | NonQualifiedCall { name :: T.Text
+  | NonQualifiedCall { name :: String
                      , args :: [EExpr] }
   | QualifiedCall { alias' :: EExpr
-                  , name :: T.Text
+                  , name :: String
                   , args :: [EExpr] }
   | Sigil { ident :: Char
-          , contents :: T.Text
+          , contents :: String
           , modifiers :: [Char] }
-  | String T.Text
+  | String String
   | Struct { alias' :: EExpr
            , map :: [(EExpr, EExpr)] }
   | StructUpdate { alias' :: EExpr
@@ -98,7 +97,7 @@ data EExpr
   | Tuple [EExpr]
   | UnaryOp Operator
             EExpr
-  | Variable T.Text
+  | Variable String
   deriving (Typeable, Eq)
 
 data Operator
@@ -155,109 +154,103 @@ data Operator
   | When
   deriving (Eq)
 
-type Env = M.Map T.Text EExpr
+type Env = M.Map String EExpr
 
-type Parser = Parsec Void T.Text
+type Parser = Parsec Void String
 
-type ParseError = ParseErrorBundle T.Text Void
+type ParseError = ParseErrorBundle String Void
 
 newtype Eval a =
   Eval (ReaderT Env IO a)
   deriving (Monad, Applicative, Functor, MonadReader Env)
 
 instance Show EExpr where
-  show = T.unpack . showExpr
+  show = showExpr
 
 -- TODO: Display ast form instead
-showExpr :: EExpr -> T.Text
-showExpr (Atom atom) = T.concat [":", atom]
+showExpr :: EExpr -> String
+showExpr (Atom atom) = concat [":", atom]
 showExpr (Alias alias') =
-  T.concat ["{:__aliases__, [], [:", T.intercalate ", :" alias', "]}"]
+  concat ["{:__aliases__, [], [:", intercalate ", :" alias', "]}"]
 showExpr (Block exprs) =
-  T.concat ["{:__block__, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
-showExpr (Integer integer) = T.pack $ show integer
-showExpr (Float float) = T.pack $ show float
-showExpr (String text) = T.concat ["\"", text, "\""]
-showExpr (Charlist text) = T.concat ["'", text, "'"]
-showExpr (Variable name) = T.concat ["{:", name, ", [], Elixir}"]
+  concat ["{:__block__, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
+showExpr (Integer integer) = show integer
+showExpr (Float float) = show float
+showExpr (String text) = concat ["\"", text, "\""]
+showExpr (Charlist text) = concat ["'", text, "'"]
+showExpr (Variable name) = concat ["{:", name, ", [], Elixir}"]
 showExpr (Tuple [expr1, expr2]) =
-  T.concat ["{", showExpr expr1, ", ", showExpr expr2, "}"]
+  concat ["{", showExpr expr1, ", ", showExpr expr2, "}"]
 showExpr (Tuple exprs) =
-  T.concat ["{:{}, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
+  concat ["{:{}, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (Binary exprs) =
-  T.concat ["{:<<>>, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
+  concat ["{:<<>>, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
 showExpr (Sigil ident contents modifiers) =
-  T.concat
+  concat
     [ "{:sigil_"
-    , T.pack [ident]
+    , [ident]
     , ", [], [{:<<>>, [], [\""
     , contents
     , "\"]}, '"
-    , T.pack modifiers
+    , modifiers
     , "']}"
     ]
-showExpr (List exprs) =
-  T.concat ["[", T.intercalate ", " $ showExpr <$> exprs, "]"]
+showExpr (List exprs) = concat ["[", intercalate ", " $ showExpr <$> exprs, "]"]
 showExpr (Map keyValues) =
-  T.concat
+  concat
     [ "%{"
-    , T.intercalate ", " $
-      (\(k, v) -> T.concat [showExpr k, " => ", showExpr v]) <$>
-      keyValues
+    , intercalate ", " $
+      (\(k, v) -> concat [showExpr k, " => ", showExpr v]) <$> keyValues
     , "}"
     ]
 showExpr (MapUpdate expr updates) =
-  T.concat
+  concat
     [ "{:%{}, [], [{:|, [], ["
     , showExpr expr
     , ", ["
-    , T.intercalate ", " $
-      (\(k, v) -> T.concat ["{", showExpr k, ", ", showExpr v, "}"]) <$>
-      updates
+    , intercalate ", " $
+      (\(k, v) -> concat ["{", showExpr k, ", ", showExpr v, "}"]) <$> updates
     , "]]}]}"
     ]
 showExpr (Struct alias' keyValues) =
-  T.concat
+  concat
     [ "%"
     , showExpr alias'
     , "{"
-    , T.intercalate ", " $
-      (\(k, v) -> T.concat [showExpr k, " => ", showExpr v]) <$>
-      keyValues
+    , intercalate ", " $
+      (\(k, v) -> concat [showExpr k, " => ", showExpr v]) <$> keyValues
     , "}"
     ]
 showExpr (StructUpdate alias' expr updates) =
-  T.concat
+  concat
     [ "{:%, [], [{:__aliases__, [], [:"
     , showExpr alias'
     , "]}, {:%{}, [], [{:|, [], ["
     , showExpr expr
     , ", ["
-    , T.intercalate ", " $
-      (\(k, v) -> T.concat ["{", showExpr k, ", ", showExpr v, "}"]) <$>
-      updates
+    , intercalate ", " $
+      (\(k, v) -> concat ["{", showExpr k, ", ", showExpr v, "}"]) <$> updates
     , "]]}]}]}"
     ]
 showExpr (QualifiedCall alias' name args) =
-  T.concat
+  concat
     [ "{:., [], ["
     , showExpr alias'
     , ", :"
     , name
     , "]}, [], ["
-    , T.intercalate ", " $ showExpr <$> args
+    , intercalate ", " $ showExpr <$> args
     , "]}"
     ]
 showExpr (NonQualifiedCall name args) =
-  T.concat ["{:", name, ", [], [", T.intercalate ", " $ showExpr <$> args, "]}"]
+  concat ["{:", name, ", [], [", intercalate ", " $ showExpr <$> args, "]}"]
 showExpr (BinaryOp op a b) =
-  T.concat ["{:", showOp op, ", [], [", showExpr a, ", ", showExpr b, "]}"]
-showExpr (UnaryOp op a) =
-  T.concat ["{:", showOp op, ", [], [", showExpr a, "]}"]
+  concat ["{:", showOp op, ", [], [", showExpr a, ", ", showExpr b, "]}"]
+showExpr (UnaryOp op a) = concat ["{:", showOp op, ", [], [", showExpr a, "]}"]
 showExpr (Fn exprs) =
-  T.concat ["{:fn, [], [", T.intercalate ", " $ showExpr <$> exprs, "]}"]
+  concat ["{:fn, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
 
-showOp :: Operator -> T.Text
+showOp :: Operator -> String
 showOp And = "&&"
 showOp Application = "."
 showOp Assignment = "="
@@ -310,9 +303,9 @@ showOp TildeChevron = "~>"
 showOp TildeDoubleChevron = "~>>"
 showOp When = "when"
 
-showEnv :: Env -> T.Text
+showEnv :: Env -> String
 showEnv env =
-  T.concat $
+  concat $
   M.foldrWithKey (\k v a -> "(" : k : " " : showExpr v : "), " : a) [] env
 
 sepEndBy2 :: MonadPlus f => f a -> f sep -> f [a]
@@ -400,29 +393,29 @@ opsTable =
   , [infixl' "<-" LeftArrow, infixl' "\\\\" DefaultArg]
   ]
 
-prefix :: T.Text -> Operator -> E.Operator Parser EExpr
+prefix :: String -> Operator -> E.Operator Parser EExpr
 prefix name f = E.Prefix (UnaryOp f <$ symbol' name)
 
-infixl' :: T.Text -> Operator -> E.Operator Parser EExpr
+infixl' :: String -> Operator -> E.Operator Parser EExpr
 infixl' name f = E.InfixL (BinaryOp f <$ symbol' name)
 
-infixr' :: T.Text -> Operator -> E.Operator Parser EExpr
+infixr' :: String -> Operator -> E.Operator Parser EExpr
 infixr' name f = E.InfixR (BinaryOp f <$ symbol' name)
 
-infixlNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
+infixlNotFollowedBy :: String -> Operator -> String -> E.Operator Parser EExpr
 infixlNotFollowedBy name f chars =
   E.InfixL (BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
 
-infixrNotFollowedBy :: T.Text -> Operator -> String -> E.Operator Parser EExpr
+infixrNotFollowedBy :: String -> Operator -> String -> E.Operator Parser EExpr
 infixrNotFollowedBy name f chars =
   E.InfixR (BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
 
 -- Differentiating multi-line expressions and blocks is a pain.
-infixlPrecededByEol :: T.Text -> Operator -> E.Operator Parser EExpr
+infixlPrecededByEol :: String -> Operator -> E.Operator Parser EExpr
 infixlPrecededByEol name f =
   E.InfixL (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
 
-infixrPrecededByEol :: T.Text -> Operator -> E.Operator Parser EExpr
+infixrPrecededByEol :: String -> Operator -> E.Operator Parser EExpr
 infixrPrecededByEol name f =
   E.InfixR (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
 
@@ -442,7 +435,7 @@ spaceConsumer' = L.space C.space1 lineComment blockComment
     blockComment = empty
 
 space :: Parser ()
-space = void $ oneOf (" \t" :: [Char])
+space = void $ oneOf " \t"
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme spaceConsumer
@@ -450,10 +443,10 @@ lexeme = L.lexeme spaceConsumer
 lexeme' :: Parser a -> Parser a
 lexeme' = L.lexeme spaceConsumer'
 
-symbol :: T.Text -> Parser T.Text
+symbol :: String -> Parser String
 symbol = L.symbol spaceConsumer
 
-symbol' :: T.Text -> Parser T.Text
+symbol' :: String -> Parser String
 symbol' = L.symbol spaceConsumer'
 
 parens :: Parser a -> Parser a
@@ -493,17 +486,17 @@ integer = lexeme L.decimal -- TODO: should allow `_`
 float :: Parser Float
 float = lexeme L.float -- TODO: should allow `_`
 
-rword :: T.Text -> Parser ()
+rword :: String -> Parser ()
 rword w =
   lexeme . try $ C.string w *> notFollowedBy (C.lowerChar <|> C.char '_')
 
 variable :: Parser String
 variable = lexeme $ identifier <* notFollowedBy (C.char ':')
 
-semicolon :: Parser T.Text
+semicolon :: Parser String
 semicolon = symbol ";"
 
-blockSep :: Parser T.Text
+blockSep :: Parser String
 blockSep = semicolon <|> lexeme C.eol
 
 identifier :: Parser String
@@ -513,7 +506,7 @@ identifier = p >>= check
       (++) <$>
       ((:) <$> (C.lowerChar <|> C.char '_') <*>
        many (C.letterChar <|> C.digitChar <|> C.char '_')) <*>
-      count' 0 1 (oneOf ("!?" :: [Char]))
+      count' 0 1 (oneOf "!?")
     check x =
       if x `elem` reservedWords
         then fail $ show x ++ " is a reserved keyword"
@@ -539,8 +532,8 @@ unquotedAtomHead = C.letterChar <|> C.char '_'
 
 unquotedAtomTail :: Parser String
 unquotedAtomTail =
-  (++) <$> many (C.letterChar <|> C.digitChar <|> oneOf ("_@" :: [Char])) <*>
-  count' 0 1 (oneOf ("!?" :: [Char]))
+  (++) <$> many (C.letterChar <|> C.digitChar <|> oneOf "_@") <*>
+  count' 0 1 (oneOf "!?")
 
 unquotedAtomBody :: Parser String
 unquotedAtomBody = (:) <$> unquotedAtomHead <*> unquotedAtomTail
@@ -555,8 +548,7 @@ quotedAtom :: Parser String
 quotedAtom = lexeme $ C.char ':' *> quotedAtomBody
 
 specialAtom :: Parser String
-specialAtom =
-  lexeme $ T.unpack <$> (symbol "true" <|> symbol "false" <|> symbol "nil")
+specialAtom = lexeme $ symbol "true" <|> symbol "false" <|> symbol "nil"
 
 alias :: Parser [String]
 alias = lexeme $ (:) <$> aliasStart <*> many (try aliasChunk)
@@ -574,7 +566,7 @@ aliasChunk =
       upper <- C.upperChar
       return upper
 
-rightArrow :: Parser T.Text
+rightArrow :: Parser String
 rightArrow = symbol' "->"
 
 --
@@ -597,7 +589,7 @@ atomKeyValue = keyValue parseAtom
 
 keywords :: (EExpr -> EExpr -> b) -> Parser b
 keywords wrapper = do
-  key <- Atom . T.pack <$!> (quotedAtomBody <|> unquotedAtomBody)
+  key <- Atom <$!> (quotedAtomBody <|> unquotedAtomBody)
   void $ symbol' ":"
   value <- parseExpr
   void $ optional (lexeme C.eol)
@@ -646,8 +638,8 @@ parseBlock = Block <$> (clauses <|> exprs)
 
 parseBlock2 :: Parser EExpr
 parseBlock2 =
-  Block <$> try (parseExpr <* notFollowedBy rightArrow) `sepEndBy2`
-  (many blockSep)
+  Block <$>
+  try (parseExpr <* notFollowedBy rightArrow) `sepEndBy2` (many blockSep)
 
 parseDoBlock :: Parser EExpr
 parseDoBlock = do
@@ -670,7 +662,7 @@ parseFn :: Parser EExpr
 parseFn = Fn <$> fnEnd (try parseRightArrow `sepEndBy` (many blockSep))
 
 parseAlias :: Parser EExpr
-parseAlias = Alias <$> fmap T.pack <$> alias
+parseAlias = Alias <$> alias
 
 parseList :: Parser EExpr
 parseList = List <$> (try regularList <|> keywordList)
@@ -688,7 +680,7 @@ parseSigil :: Parser EExpr
 parseSigil = do
   void $ symbol "~"
   ident <- C.upperChar <|> C.lowerChar
-  contents <- T.pack <$> sigilContents
+  contents <- sigilContents
   modifiers <- lexeme $ many C.letterChar
   return $ Sigil ident contents modifiers
 
@@ -732,16 +724,16 @@ parseStructUpdate = do
     keywords = commaSeparated mapKeywords
 
 parseAtom :: Parser EExpr
-parseAtom = Atom . T.pack <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
+parseAtom = Atom <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
 
 parseString :: Parser EExpr
-parseString = String . T.pack <$!> (try multiString <|> string)
+parseString = String <$!> (try multiString <|> string)
 
 parseCharlist :: Parser EExpr
-parseCharlist = Charlist . T.pack <$!> charlist
+parseCharlist = Charlist <$!> charlist
 
 parseVariable :: Parser EExpr
-parseVariable = Variable . T.pack <$!> variable
+parseVariable = Variable <$!> variable
 
 parseInteger :: Parser EExpr -- notFollowedByIdentifierStart?
 parseInteger = Integer <$> integer
@@ -751,7 +743,7 @@ parseFloat = Float <$> float
 
 parseNonQualifiedCall :: Parser EExpr
 parseNonQualifiedCall = do
-  name <- T.pack <$> identifier
+  name <- identifier
   args <- parensArgs <|> spacesArgs
   return $ NonQualifiedCall name args
 
@@ -759,7 +751,7 @@ parseQualifiedCall :: Parser EExpr
 parseQualifiedCall = do
   alias' <- parseAlias
   void $ C.char '.'
-  name <- T.pack <$> (identifier <|> strictString <|> strictCharlist)
+  name <- identifier <|> strictString <|> strictCharlist
   args <- parensArgs <|> spacesArgs
   return $ QualifiedCall alias' name args
 
@@ -832,7 +824,7 @@ parseMapExpr =
 --
 -- REPL
 --
-readExpr :: T.Text -> IO ()
+readExpr :: String -> IO ()
 readExpr e =
   case parse exprParser "" e of
     Left e -> putStr $ errorBundlePretty e
@@ -841,4 +833,4 @@ readExpr e =
 readSource :: String -> IO ()
 readSource p = do
   source <- readFile p
-  (readExpr . T.pack) source
+  readExpr source

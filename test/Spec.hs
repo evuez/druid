@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 import qualified Lib as E (EExpr(..), Operator(..))
 import Lib
   ( exprParser
