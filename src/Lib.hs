@@ -4,15 +4,15 @@
 module Lib where
 
 import Control.Applicative ((<|>), empty, liftA2, optional)
-import Control.Exception (Exception, SomeException, fromException, throw)
+import Control.Exception ()
 import Control.Monad (MonadPlus, (<$!>), void)
 import Control.Monad.Combinators.Expr (makeExprParser)
 import qualified Control.Monad.Combinators.Expr as E
   ( Operator(InfixL, InfixR, Prefix)
   )
-import Control.Monad.Reader (MonadReader, ReaderT(..), ask, local)
+import Control.Monad.Reader (MonadReader, ReaderT(..))
 import Data.Char (isSpace)
-import qualified Data.Map as M (Map, foldrWithKey, fromList, insert, lookup)
+import qualified Data.Map as M (Map, foldrWithKey)
 import qualified Data.Text as T (Text, concat, intercalate, pack, unpack)
 import Data.Typeable (Typeable)
 import Data.Void
@@ -21,10 +21,7 @@ import Text.Megaparsec
   , Parsec
   , (<?>)
   , between
-  , choice
-  , count
   , count'
-  , endBy
   , eof
   , lookAhead
   , many
@@ -36,8 +33,6 @@ import Text.Megaparsec
   , sepBy1
   , sepEndBy
   , sepEndBy1
-  , skipCount
-  , some
   , takeWhile1P
   , try
   )
@@ -56,14 +51,13 @@ import qualified Text.Megaparsec.Char.Lexer as L
   , decimal
   , float
   , lexeme
-  , skipBlockComment
   , skipLineComment
   , space
   , symbol
   )
-import Text.Megaparsec.Debug (dbg)
+import Text.Megaparsec.Debug ()
 import Text.Megaparsec.Error (errorBundlePretty)
-import Text.Megaparsec.Stream (Token)
+import Text.Megaparsec.Stream ()
 
 data EExpr
   = Atom T.Text
