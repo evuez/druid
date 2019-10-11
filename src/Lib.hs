@@ -2,7 +2,7 @@
 
 module Lib where
 
-import Control.Applicative ((<|>), empty, liftA2, optional)
+import Control.Applicative ((<|>), empty, liftA2, liftA3, optional)
 import Control.Exception (Exception, SomeException, fromException, throw)
 import Control.Monad (MonadPlus, (<$!>), void)
 import Control.Monad.Combinators.Expr (makeExprParser)
@@ -413,11 +413,11 @@ infixrNotFollowedBy name f chars =
 -- Differentiating multi-line expressions and blocks is a pain.
 infixlPrecededByEol :: String -> Operator -> E.Operator Parser EExpr
 infixlPrecededByEol name f =
-  E.InfixL (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
+  E.InfixL (BinaryOp f <$ try (lexeme (optional C.eol) *> symbol' name))
 
 infixrPrecededByEol :: String -> Operator -> E.Operator Parser EExpr
 infixrPrecededByEol name f =
-  E.InfixR (BinaryOp f <$ try (lexeme (optional C.eol) >> symbol' name))
+  E.InfixR (BinaryOp f <$ try (lexeme (optional C.eol) *> symbol' name))
 
 --
 -- Lexer
@@ -459,7 +459,7 @@ chevrons :: Parser a -> Parser a
 chevrons = between (symbol "<<") (symbol ">>")
 
 squareBrackets :: Parser a -> Parser a
-squareBrackets = between (symbol' "[") (lexeme (optional C.eol) >> symbol' "]")
+squareBrackets = between (symbol' "[") (lexeme (optional C.eol) *> symbol' "]")
 
 doEnd :: Parser a -> Parser a
 doEnd = between (symbol' "do") (symbol' "end")
@@ -510,7 +510,7 @@ identifier = p >>= check
     check x =
       if x `elem` reservedWords
         then fail $ show x ++ " is a reserved keyword"
-        else return x
+        else pure x
 
 string :: Parser String
 string = lexeme strictString
@@ -559,12 +559,8 @@ aliasStart =
 
 aliasChunk :: Parser String
 aliasChunk =
-  (:) <$> dotUpper <*> many (C.letterChar <|> C.digitChar <|> C.char '_')
-  where
-    dotUpper = do
-      void $ C.char '.'
-      upper <- C.upperChar
-      return upper
+  (:) <$> (C.char '.' *> C.upperChar) <*>
+  many (C.letterChar <|> C.digitChar <|> C.char '_')
 
 rightArrow :: Parser String
 rightArrow = symbol' "->"
@@ -579,7 +575,7 @@ keyValue keyParser = do
   void $ symbol' "=>"
   value <- parseExpr
   void $ optional (lexeme C.eol)
-  return (key, value)
+  pure (key, value)
 
 regularKeyValue :: Parser (EExpr, EExpr)
 regularKeyValue = keyValue parseExpr
@@ -593,7 +589,7 @@ keywords wrapper = do
   void $ symbol' ":"
   value <- parseExpr
   void $ optional (lexeme C.eol)
-  return $ wrapper key value
+  pure $ wrapper key value
 
 mapKeywords :: Parser (EExpr, EExpr)
 mapKeywords = keywords (,)
@@ -613,7 +609,7 @@ spacesArgs = do
   doBlock <- count' 0 1 parseDoBlock
   case args ++ doBlock of
     [] -> fail "missing params in function call"
-    args' -> return args'
+    args' -> pure args'
   where
     keywordArgs = List <$> commaSeparated1 listKeywords
 
@@ -647,11 +643,11 @@ parseDoBlock = do
     doEnd $ do
       block <- parseBlock
       alts <- optional $ many (wrapper <$> alts <*> parseBlock)
-      return $
+      pure $
         case alts of
           Just alts' -> (wrapper "do" block) : alts'
           Nothing -> [wrapper "do" block]
-  return $ List doBlock
+  pure $ List doBlock
   where
     alts =
       symbol' "catch" <|> symbol' "rescue" <|> symbol' "after" <|>
@@ -677,12 +673,13 @@ parseBinary :: Parser EExpr
 parseBinary = Binary <$> chevrons (commaSeparated parseExpr)
 
 parseSigil :: Parser EExpr
-parseSigil = do
-  void $ symbol "~"
-  ident <- C.upperChar <|> C.lowerChar
-  contents <- sigilContents
-  modifiers <- lexeme $ many C.letterChar
-  return $ Sigil ident contents modifiers
+parseSigil =
+  symbol "~" *>
+  liftA3
+    Sigil
+    (C.upperChar <|> C.lowerChar)
+    sigilContents
+    (lexeme $ many C.letterChar)
 
 parseMap :: Parser EExpr
 parseMap = do
@@ -697,8 +694,8 @@ parseMapUpdate = do
       lhs <- lexeme' parseMapExpr
       void $ symbol' "|"
       rhs <- try (commaSeparated regularKeyValue) <|> commaSeparated mapKeywords
-      return $ MapUpdate lhs rhs
-  return mapUpdate
+      pure $ MapUpdate lhs rhs
+  pure mapUpdate
 
 parseStruct :: Parser EExpr
 parseStruct = do
@@ -717,8 +714,8 @@ parseStructUpdate = do
       lhs <- lexeme' parseMapExpr
       void $ symbol' "|"
       rhs <- try arrow <|> keywords
-      return $ StructUpdate alias' lhs rhs
-  return mapUpdate
+      pure $ StructUpdate alias' lhs rhs
+  pure mapUpdate
   where
     arrow = commaSeparated1 atomKeyValue
     keywords = commaSeparated mapKeywords
@@ -742,10 +739,8 @@ parseFloat :: Parser EExpr -- notFollowedByIdentifierStart?
 parseFloat = Float <$> float
 
 parseNonQualifiedCall :: Parser EExpr
-parseNonQualifiedCall = do
-  name <- identifier
-  args <- parensArgs <|> spacesArgs
-  return $ NonQualifiedCall name args
+parseNonQualifiedCall =
+  liftA2 NonQualifiedCall identifier (parensArgs <|> spacesArgs)
 
 parseQualifiedCall :: Parser EExpr
 parseQualifiedCall = do
@@ -753,7 +748,7 @@ parseQualifiedCall = do
   void $ C.char '.'
   name <- identifier <|> strictString <|> strictCharlist
   args <- parensArgs <|> spacesArgs
-  return $ QualifiedCall alias' name args
+  pure $ QualifiedCall alias' name args
 
 parseRightArrow :: Parser EExpr
 parseRightArrow = do
@@ -762,8 +757,8 @@ parseRightArrow = do
   void $ rightArrow
   rhs <- try parseBlock2 <|> parseExpr
   case lhs of
-    Just lhs' -> return $ BinaryOp RightArrow (List lhs') rhs
-    Nothing -> return $ BinaryOp RightArrow (List []) rhs
+    Just lhs' -> pure $ BinaryOp RightArrow (List lhs') rhs
+    Nothing -> pure $ BinaryOp RightArrow (List []) rhs
 
 -- This is wrong in so many ways...
 parseAccess :: Parser EExpr
@@ -775,7 +770,7 @@ parseAccess = do
   void $ symbol "["
   index <- parseExpr
   void $ symbol "]"
-  return $ QualifiedCall (Alias ["Access"]) "get" [expr, index]
+  pure $ QualifiedCall (Alias ["Access"]) "get" [expr, index]
 
 parseAny :: Parser EExpr
 parseAny =
@@ -831,6 +826,4 @@ readExpr e =
     Right ast -> putStr $ show ast ++ "\n"
 
 readSource :: String -> IO ()
-readSource p = do
-  source <- readFile p
-  readExpr source
+readSource p = readFile p >>= readExpr
