@@ -3,16 +3,15 @@
 module Lib where
 
 import Control.Applicative ((<|>), empty, liftA2, liftA3, optional)
-import Control.Exception (Exception, SomeException, fromException, throw)
 import Control.Monad (MonadPlus, (<$!>), void)
 import Control.Monad.Combinators.Expr (makeExprParser)
 import qualified Control.Monad.Combinators.Expr as E
   ( Operator(InfixL, InfixR, Prefix)
   )
-import Control.Monad.Reader (MonadReader, ReaderT(..), ask, local)
+import Control.Monad.Reader (MonadReader, ReaderT(..))
 import Data.Char (isSpace)
 import Data.List (intercalate)
-import qualified Data.Map as M (Map, foldrWithKey, fromList, insert, lookup)
+import qualified Data.Map as M (Map, foldrWithKey)
 import Data.Typeable (Typeable)
 import Data.Void
 import Text.Megaparsec
@@ -20,10 +19,7 @@ import Text.Megaparsec
   , Parsec
   , (<?>)
   , between
-  , choice
-  , count
   , count'
-  , endBy
   , eof
   , lookAhead
   , many
@@ -35,8 +31,6 @@ import Text.Megaparsec
   , sepBy1
   , sepEndBy
   , sepEndBy1
-  , skipCount
-  , some
   , takeWhile1P
   , try
   )
@@ -55,14 +49,11 @@ import qualified Text.Megaparsec.Char.Lexer as L
   , decimal
   , float
   , lexeme
-  , skipBlockComment
   , skipLineComment
   , space
   , symbol
   )
-import Text.Megaparsec.Debug (dbg)
 import Text.Megaparsec.Error (errorBundlePretty)
-import Text.Megaparsec.Stream (Token)
 
 data EExpr
   = Atom String
@@ -814,14 +805,14 @@ parseMapExpr =
     opsTableWithNoPipe
   where
     opsTableWithNoPipe = xs ++ ys
-    (xs, (y:ys)) = splitAt 15 opsTable
+    (xs, (_:ys)) = splitAt 15 opsTable
 
 --
 -- REPL
 --
 readExpr :: String -> IO ()
-readExpr e =
-  case parse exprParser "" e of
+readExpr s =
+  case parse exprParser "" s of
     Left e -> putStr $ errorBundlePretty e
     Right ast -> putStr $ show ast ++ "\n"
 
