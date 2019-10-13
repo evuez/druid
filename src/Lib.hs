@@ -5,15 +5,12 @@ module Lib where
 import Control.Applicative ((<|>), empty, liftA2, liftA3, optional)
 import Control.Monad (MonadPlus, (<$!>), void)
 import Control.Monad.Combinators.Expr (makeExprParser)
-import qualified Control.Monad.Combinators.Expr as E
-  ( Operator(InfixL, InfixR, Prefix)
-  )
+import Control.Monad.Combinators.Expr (Operator(InfixL, InfixR, Prefix))
 import Control.Monad.Reader (MonadReader, ReaderT(..))
 import Data.Char (isSpace)
-import Data.List (intercalate)
 import qualified Data.Map as M (Map, foldrWithKey)
-import Data.Typeable (Typeable)
 import Data.Void
+import qualified Expr as E (EExpr(..), Operator(..), showExpr)
 import Text.Megaparsec
   ( ParseErrorBundle
   , Parsec
@@ -55,97 +52,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
   )
 import Text.Megaparsec.Error (errorBundlePretty)
 
-data EExpr
-  = Atom String
-  | Alias [String]
-  | Binary [EExpr]
-  | BinaryOp Operator
-             EExpr
-             EExpr
-  | Block [EExpr]
-  | Charlist String
-  | Float Float
-  | Fn [EExpr]
-  | Integer Integer
-  | List [EExpr]
-  | Map [(EExpr, EExpr)]
-  | MapUpdate { expr :: EExpr
-              , updates :: [(EExpr, EExpr)] }
-  | NonQualifiedCall { name :: String
-                     , args :: [EExpr] }
-  | QualifiedCall { alias' :: EExpr
-                  , name :: String
-                  , args :: [EExpr] }
-  | Sigil { ident :: Char
-          , contents :: String
-          , modifiers :: [Char] }
-  | String String
-  | Struct { alias' :: EExpr
-           , map :: [(EExpr, EExpr)] }
-  | StructUpdate { alias' :: EExpr
-                 , expr :: EExpr
-                 , updates :: [(EExpr, EExpr)] }
-  | Tuple [EExpr]
-  | UnaryOp Operator
-            EExpr
-  | Variable String
-  deriving (Typeable, Eq)
-
-data Operator
-  = And
-  | Application
-  | Assignment
-  | Attribute
-  | Bang
-  | BitwiseAnd
-  | BitwiseNot
-  | BitwiseOr
-  | BitwiseXor
-  | BooleanAnd
-  | BooleanOr
-  | Capture
-  | ChevronPipeChevron
-  | ChevronTilde
-  | ChevronTildeChevron
-  | Concat
-  | DefaultArg
-  | Difference
-  | Division
-  | DoubleChevronTilde
-  | Equal
-  | GreaterThan
-  | GreaterThanOrEqual
-  | Id
-  | In
-  | LeftArrow
-  | LessThan
-  | LessThanOrEqual
-  | Negation
-  | Not
-  | NotEqual
-  | NotIn
-  | Or
-  | Pin
-  | Pipe
-  | PipeRight
-  | Product
-  | Range
-  | RegexEqual
-  | RightArrow
-  | ShiftLeft
-  | ShiftRight
-  | SpecType
-  | StrictEqual
-  | StrictNotEqual
-  | StringConcat
-  | Subtraction
-  | Sum
-  | TildeChevron
-  | TildeDoubleChevron
-  | When
-  deriving (Eq)
-
-type Env = M.Map String EExpr
+type Env = M.Map String E.EExpr
 
 type Parser = Parsec Void String
 
@@ -155,149 +62,10 @@ newtype Eval a =
   Eval (ReaderT Env IO a)
   deriving (Monad, Applicative, Functor, MonadReader Env)
 
-instance Show EExpr where
-  show = showExpr
-
--- TODO: Display ast form instead
-showExpr :: EExpr -> String
-showExpr (Atom atom) = concat [":", atom]
-showExpr (Alias alias') =
-  concat ["{:__aliases__, [], [:", intercalate ", :" alias', "]}"]
-showExpr (Block exprs) =
-  concat ["{:__block__, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
-showExpr (Integer integer) = show integer
-showExpr (Float float) = show float
-showExpr (String text) = concat ["\"", text, "\""]
-showExpr (Charlist text) = concat ["'", text, "'"]
-showExpr (Variable name) = concat ["{:", name, ", [], Elixir}"]
-showExpr (Tuple [expr1, expr2]) =
-  concat ["{", showExpr expr1, ", ", showExpr expr2, "}"]
-showExpr (Tuple exprs) =
-  concat ["{:{}, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
-showExpr (Binary exprs) =
-  concat ["{:<<>>, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
-showExpr (Sigil ident contents modifiers) =
-  concat
-    [ "{:sigil_"
-    , [ident]
-    , ", [], [{:<<>>, [], [\""
-    , contents
-    , "\"]}, '"
-    , modifiers
-    , "']}"
-    ]
-showExpr (List exprs) = concat ["[", intercalate ", " $ showExpr <$> exprs, "]"]
-showExpr (Map keyValues) =
-  concat
-    [ "%{"
-    , intercalate ", " $
-      (\(k, v) -> concat [showExpr k, " => ", showExpr v]) <$> keyValues
-    , "}"
-    ]
-showExpr (MapUpdate expr updates) =
-  concat
-    [ "{:%{}, [], [{:|, [], ["
-    , showExpr expr
-    , ", ["
-    , intercalate ", " $
-      (\(k, v) -> concat ["{", showExpr k, ", ", showExpr v, "}"]) <$> updates
-    , "]]}]}"
-    ]
-showExpr (Struct alias' keyValues) =
-  concat
-    [ "%"
-    , showExpr alias'
-    , "{"
-    , intercalate ", " $
-      (\(k, v) -> concat [showExpr k, " => ", showExpr v]) <$> keyValues
-    , "}"
-    ]
-showExpr (StructUpdate alias' expr updates) =
-  concat
-    [ "{:%, [], [{:__aliases__, [], [:"
-    , showExpr alias'
-    , "]}, {:%{}, [], [{:|, [], ["
-    , showExpr expr
-    , ", ["
-    , intercalate ", " $
-      (\(k, v) -> concat ["{", showExpr k, ", ", showExpr v, "}"]) <$> updates
-    , "]]}]}]}"
-    ]
-showExpr (QualifiedCall alias' name args) =
-  concat
-    [ "{:., [], ["
-    , showExpr alias'
-    , ", :"
-    , name
-    , "]}, [], ["
-    , intercalate ", " $ showExpr <$> args
-    , "]}"
-    ]
-showExpr (NonQualifiedCall name args) =
-  concat ["{:", name, ", [], [", intercalate ", " $ showExpr <$> args, "]}"]
-showExpr (BinaryOp op a b) =
-  concat ["{:", showOp op, ", [], [", showExpr a, ", ", showExpr b, "]}"]
-showExpr (UnaryOp op a) = concat ["{:", showOp op, ", [], [", showExpr a, "]}"]
-showExpr (Fn exprs) =
-  concat ["{:fn, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
-
-showOp :: Operator -> String
-showOp And = "&&"
-showOp Application = "."
-showOp Assignment = "="
-showOp Attribute = "@"
-showOp Bang = "!"
-showOp BitwiseAnd = "&&&"
-showOp BitwiseNot = "~~~"
-showOp BitwiseOr = "|||"
-showOp BitwiseXor = "^^^"
-showOp BooleanAnd = "and"
-showOp BooleanOr = "or"
-showOp Capture = "&"
-showOp ChevronPipeChevron = "<|>"
-showOp ChevronTilde = "<~"
-showOp ChevronTildeChevron = "<~>"
-showOp Concat = "++"
-showOp DefaultArg = "\\"
-showOp Difference = "--"
-showOp Division = "/"
-showOp DoubleChevronTilde = "<<~"
-showOp Equal = "=="
-showOp GreaterThan = ">"
-showOp GreaterThanOrEqual = ">="
-showOp Id = "+"
-showOp In = "in"
-showOp LeftArrow = "<-"
-showOp LessThan = "<"
-showOp LessThanOrEqual = "<="
-showOp Negation = "-"
-showOp Not = "not"
-showOp NotEqual = "!="
-showOp NotIn = "not in"
-showOp Or = "||"
-showOp Pin = "^"
-showOp Pipe = "|"
-showOp PipeRight = "|>"
-showOp Product = "*"
-showOp Range = ".."
-showOp RegexEqual = "=~"
-showOp RightArrow = "->"
-showOp ShiftLeft = "<<<"
-showOp ShiftRight = ">>>"
-showOp SpecType = "::"
-showOp StrictEqual = "==="
-showOp StrictNotEqual = "!=="
-showOp StringConcat = "<>"
-showOp Subtraction = "-"
-showOp Sum = "+"
-showOp TildeChevron = "~>"
-showOp TildeDoubleChevron = "~>>"
-showOp When = "when"
-
 showEnv :: Env -> String
 showEnv env =
   concat $
-  M.foldrWithKey (\k v a -> "(" : k : " " : showExpr v : "), " : a) [] env
+  M.foldrWithKey (\k v a -> "(" : k : " " : E.showExpr v : "), " : a) [] env
 
 sepEndBy2 :: MonadPlus f => f a -> f sep -> f [a]
 sepEndBy2 p sep = liftA2 (:) (p <* sep) (sepEndBy1 p sep)
@@ -327,88 +95,90 @@ reservedWords =
 --
 -- Operators
 --
-opsTable :: [[E.Operator Parser EExpr]]
+opsTable :: [[Operator Parser E.EExpr]]
 opsTable =
-  [ [prefix "@" Attribute]
-  , [infixlNotFollowedBy "." Application "."]
-  , [ prefix "+" Id
-    , prefix "-" Negation
-    , prefix "!" Bang
-    , prefix "^" Pin
-    , prefix "not" Not
-    , prefix "~~~" BitwiseNot
+  [ [prefix "@" E.Attribute]
+  , [infixlNotFollowedBy "." E.Application "."]
+  , [ prefix "+" E.Id
+    , prefix "-" E.Negation
+    , prefix "!" E.Bang
+    , prefix "^" E.Pin
+    , prefix "not" E.Not
+    , prefix "~~~" E.BitwiseNot
     ]
-  , [infixl' "*" Product, infixl' "/" Division]
-  , [infixlNotFollowedBy "+" Sum "+", infixlNotFollowedBy "-" Subtraction ">-"]
-  , [ infixr' "++" Concat
-    , infixr' "--" Difference
-    , infixr' ".." Range
-    , infixr' "<>" StringConcat
+  , [infixl' "*" E.Product, infixl' "/" E.Division]
+  , [ infixlNotFollowedBy "+" E.Sum "+"
+    , infixlNotFollowedBy "-" E.Subtraction ">-"
     ]
-  , [infixl' "^^^" BitwiseXor]
-  , [infixl' "in" In, infixl' "not in" NotIn]
-  , [ infixlPrecededByEol "|>" PipeRight
-    , infixl' "<<<" ShiftLeft
-    , infixl' ">>>" ShiftRight
-    , infixl' "<<~" DoubleChevronTilde
-    , infixl' "~>>" TildeDoubleChevron
-    , infixlNotFollowedBy "<~" ChevronTilde ">"
-    , infixl' "~>" TildeChevron
-    , infixl' "<~>" ChevronTildeChevron
-    , infixl' "<|>" ChevronPipeChevron
+  , [ infixr' "++" E.Concat
+    , infixr' "--" E.Difference
+    , infixr' ".." E.Range
+    , infixr' "<>" E.StringConcat
     ]
-  , [ infixlNotFollowedBy "<" LessThan "-="
-    , infixlNotFollowedBy ">" GreaterThan ">="
-    , infixl' "<=" LessThanOrEqual
-    , infixl' ">=" GreaterThanOrEqual
+  , [infixl' "^^^" E.BitwiseXor]
+  , [infixl' "in" E.In, infixl' "not in" E.NotIn]
+  , [ infixlPrecededByEol "|>" E.PipeRight
+    , infixl' "<<<" E.ShiftLeft
+    , infixl' ">>>" E.ShiftRight
+    , infixl' "<<~" E.DoubleChevronTilde
+    , infixl' "~>>" E.TildeDoubleChevron
+    , infixlNotFollowedBy "<~" E.ChevronTilde ">"
+    , infixl' "~>" E.TildeChevron
+    , infixl' "<~>" E.ChevronTildeChevron
+    , infixl' "<|>" E.ChevronPipeChevron
     ]
-  , [ infixl' "===" StrictEqual
-    , infixl' "!==" StrictNotEqual
-    , infixl' "==" Equal
-    , infixl' "!=" NotEqual
-    , infixl' "=~" RegexEqual
+  , [ infixlNotFollowedBy "<" E.LessThan "-="
+    , infixlNotFollowedBy ">" E.GreaterThan ">="
+    , infixl' "<=" E.LessThanOrEqual
+    , infixl' ">=" E.GreaterThanOrEqual
     ]
-  , [ infixlNotFollowedBy "&&" And "&"
-    , infixl' "&&&" BitwiseAnd
-    , infixl' "and" BooleanAnd
+  , [ infixl' "===" E.StrictEqual
+    , infixl' "!==" E.StrictNotEqual
+    , infixl' "==" E.Equal
+    , infixl' "!=" E.NotEqual
+    , infixl' "=~" E.RegexEqual
     ]
-  , [ infixlNotFollowedBy "||" Or "|"
-    , infixl' "|||" BitwiseOr
-    , infixl' "or" BooleanOr
+  , [ infixlNotFollowedBy "&&" E.And "&"
+    , infixl' "&&&" E.BitwiseAnd
+    , infixl' "and" E.BooleanAnd
     ]
-  , [infixrNotFollowedBy "=" Assignment ">"]
-  , [prefix "&" Capture]
-  , [infixrPrecededByEol "|" Pipe]
-  , [infixr' "::" SpecType]
-  , [infixrPrecededByEol "when" When]
-  , [infixl' "<-" LeftArrow, infixl' "\\\\" DefaultArg]
+  , [ infixlNotFollowedBy "||" E.Or "|"
+    , infixl' "|||" E.BitwiseOr
+    , infixl' "or" E.BooleanOr
+    ]
+  , [infixrNotFollowedBy "=" E.Assignment ">"]
+  , [prefix "&" E.Capture]
+  , [infixrPrecededByEol "|" E.Pipe]
+  , [infixr' "::" E.SpecType]
+  , [infixrPrecededByEol "when" E.When]
+  , [infixl' "<-" E.LeftArrow, infixl' "\\\\" E.DefaultArg]
   ]
 
-prefix :: String -> Operator -> E.Operator Parser EExpr
-prefix name f = E.Prefix (UnaryOp f <$ symbol' name)
+prefix :: String -> E.Operator -> Operator Parser E.EExpr
+prefix name f = Prefix (E.UnaryOp f <$ symbol' name)
 
-infixl' :: String -> Operator -> E.Operator Parser EExpr
-infixl' name f = E.InfixL (BinaryOp f <$ symbol' name)
+infixl' :: String -> E.Operator -> Operator Parser E.EExpr
+infixl' name f = InfixL (E.BinaryOp f <$ symbol' name)
 
-infixr' :: String -> Operator -> E.Operator Parser EExpr
-infixr' name f = E.InfixR (BinaryOp f <$ symbol' name)
+infixr' :: String -> E.Operator -> Operator Parser E.EExpr
+infixr' name f = InfixR (E.BinaryOp f <$ symbol' name)
 
-infixlNotFollowedBy :: String -> Operator -> String -> E.Operator Parser EExpr
+infixlNotFollowedBy :: String -> E.Operator -> String -> Operator Parser E.EExpr
 infixlNotFollowedBy name f chars =
-  E.InfixL (BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
+  InfixL (E.BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
 
-infixrNotFollowedBy :: String -> Operator -> String -> E.Operator Parser EExpr
+infixrNotFollowedBy :: String -> E.Operator -> String -> Operator Parser E.EExpr
 infixrNotFollowedBy name f chars =
-  E.InfixR (BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
+  InfixR (E.BinaryOp f <$ try (symbol' name <* notFollowedBy (oneOf chars)))
 
 -- Differentiating multi-line expressions and blocks is a pain.
-infixlPrecededByEol :: String -> Operator -> E.Operator Parser EExpr
+infixlPrecededByEol :: String -> E.Operator -> Operator Parser E.EExpr
 infixlPrecededByEol name f =
-  E.InfixL (BinaryOp f <$ try (lexeme (optional C.eol) *> symbol' name))
+  InfixL (E.BinaryOp f <$ try (lexeme (optional C.eol) *> symbol' name))
 
-infixrPrecededByEol :: String -> Operator -> E.Operator Parser EExpr
+infixrPrecededByEol :: String -> E.Operator -> Operator Parser E.EExpr
 infixrPrecededByEol name f =
-  E.InfixR (BinaryOp f <$ try (lexeme (optional C.eol) *> symbol' name))
+  InfixR (E.BinaryOp f <$ try (lexeme (optional C.eol) *> symbol' name))
 
 --
 -- Lexer
@@ -560,7 +330,7 @@ rightArrow = symbol' "->"
 -- Parser
 --
 -- Helpers
-keyValue :: Parser EExpr -> Parser (EExpr, EExpr)
+keyValue :: Parser E.EExpr -> Parser (E.EExpr, E.EExpr)
 keyValue keyParser = do
   key <- keyParser
   void $ symbol' "=>"
@@ -568,32 +338,32 @@ keyValue keyParser = do
   void $ optional (lexeme C.eol)
   pure (key, value)
 
-regularKeyValue :: Parser (EExpr, EExpr)
+regularKeyValue :: Parser (E.EExpr, E.EExpr)
 regularKeyValue = keyValue parseExpr
 
-atomKeyValue :: Parser (EExpr, EExpr)
+atomKeyValue :: Parser (E.EExpr, E.EExpr)
 atomKeyValue = keyValue parseAtom
 
-keywords :: (EExpr -> EExpr -> b) -> Parser b
+keywords :: (E.EExpr -> E.EExpr -> b) -> Parser b
 keywords wrapper = do
-  key <- Atom <$!> (quotedAtomBody <|> unquotedAtomBody)
+  key <- E.Atom <$!> (quotedAtomBody <|> unquotedAtomBody)
   void $ symbol' ":"
   value <- parseExpr
   void $ optional (lexeme C.eol)
   pure $ wrapper key value
 
-mapKeywords :: Parser (EExpr, EExpr)
+mapKeywords :: Parser (E.EExpr, E.EExpr)
 mapKeywords = keywords (,)
 
-listKeywords :: Parser EExpr
-listKeywords = keywords (\k v -> Tuple [k, v])
+listKeywords :: Parser E.EExpr
+listKeywords = keywords (\k v -> E.Tuple [k, v])
 
-parensArgs :: Parser [EExpr]
+parensArgs :: Parser [E.EExpr]
 parensArgs = parens $ lexeme' (commaSeparated $ try parseExpr <|> keywordArgs)
   where
-    keywordArgs = List <$> commaSeparated1 listKeywords
+    keywordArgs = E.List <$> commaSeparated1 listKeywords
 
-spacesArgs :: Parser [EExpr]
+spacesArgs :: Parser [E.EExpr]
 spacesArgs = do
   void $ C.char ' '
   args <- commaSeparated $ try parseExpr <|> try keywordArgs
@@ -602,9 +372,9 @@ spacesArgs = do
     [] -> fail "missing params in function call"
     args' -> pure args'
   where
-    keywordArgs = List <$> commaSeparated1 listKeywords
+    keywordArgs = E.List <$> commaSeparated1 listKeywords
 
-spacesArgs' :: Parser [EExpr]
+spacesArgs' :: Parser [E.EExpr]
 spacesArgs' = commaSeparated1 parseExpr
 
 commaSeparated :: Parser a -> Parser [a]
@@ -614,70 +384,71 @@ commaSeparated1 :: Parser a -> Parser [a]
 commaSeparated1 parser = parser `sepBy1` (symbol' ",")
 
 -- Parsers
-exprParser :: Parser EExpr
+exprParser :: Parser E.EExpr
 exprParser = between spaceConsumer eof parseExpr
 
-parseBlock :: Parser EExpr
-parseBlock = Block <$> (clauses <|> exprs)
+parseBlock :: Parser E.EExpr
+parseBlock = E.Block <$> (clauses <|> exprs)
   where
     exprs = try parseExpr `sepEndBy` (many blockSep)
     clauses = try parseRightArrow `sepEndBy1` (many blockSep)
 
-parseBlock2 :: Parser EExpr
+parseBlock2 :: Parser E.EExpr
 parseBlock2 =
-  Block <$>
+  E.Block <$>
   try (parseExpr <* notFollowedBy rightArrow) `sepEndBy2` (many blockSep)
 
-parseDoBlock :: Parser EExpr
+parseDoBlock :: Parser E.EExpr
 parseDoBlock = do
   doBlock <-
     doEnd $ do
       block <- parseBlock
-      alts <- optional $ many (wrapper <$> alts <*> parseBlock)
+      alts <- optional $ many (wrapper <$> alternatives <*> parseBlock)
       pure $
         case alts of
           Just alts' -> (wrapper "do" block) : alts'
           Nothing -> [wrapper "do" block]
-  pure $ List doBlock
+  pure $ E.List doBlock
   where
-    alts =
+    alternatives =
       symbol' "catch" <|> symbol' "rescue" <|> symbol' "after" <|>
       symbol' "else"
-    wrapper f x = Tuple [Atom f, x]
+    wrapper f x = E.Tuple [E.Atom f, x]
 
-parseFn :: Parser EExpr
-parseFn = Fn <$> fnEnd (try parseRightArrow `sepEndBy` (many blockSep))
+parseFn :: Parser E.EExpr
+parseFn = E.Fn <$> fnEnd (try parseRightArrow `sepEndBy` (many blockSep))
 
-parseAlias :: Parser EExpr
-parseAlias = Alias <$> alias
+parseAlias :: Parser E.EExpr
+parseAlias = E.Alias <$> alias
 
-parseList :: Parser EExpr
-parseList = List <$> (try regularList <|> keywordList)
+parseList :: Parser E.EExpr
+parseList = E.List <$> (try regularList <|> keywordList)
   where
     regularList = squareBrackets $ commaSeparated parseExpr
     keywordList = squareBrackets $ commaSeparated listKeywords
 
-parseTuple :: Parser EExpr
-parseTuple = Tuple <$> braces (commaSeparated parseExpr)
+parseTuple :: Parser E.EExpr
+parseTuple = E.Tuple <$> braces (commaSeparated parseExpr)
 
-parseBinary :: Parser EExpr
-parseBinary = Binary <$> chevrons (commaSeparated parseExpr)
+parseBinary :: Parser E.EExpr
+parseBinary = E.Binary <$> chevrons (commaSeparated parseExpr)
 
-parseSigil :: Parser EExpr
+parseSigil :: Parser E.EExpr
 parseSigil =
   symbol "~" *>
   liftA3
-    Sigil
+    E.Sigil
     (C.upperChar <|> C.lowerChar)
     sigilContents
     (lexeme $ many C.letterChar)
 
-parseMap :: Parser EExpr
+parseMap :: Parser E.EExpr
 parseMap = do
   void $ symbol "%"
-  Map <$>
+  E.Map <$>
     braces (try (commaSeparated regularKeyValue) <|> commaSeparated mapKeywords)
 
+parseMapUpdate :: Parser E.EExpr
 parseMapUpdate = do
   void $ symbol "%"
   mapUpdate <-
@@ -685,18 +456,19 @@ parseMapUpdate = do
       lhs <- lexeme' parseMapExpr
       void $ symbol' "|"
       rhs <- try (commaSeparated regularKeyValue) <|> commaSeparated mapKeywords
-      pure $ MapUpdate lhs rhs
+      pure $ E.MapUpdate lhs rhs
   pure mapUpdate
 
-parseStruct :: Parser EExpr
+parseStruct :: Parser E.EExpr
 parseStruct = do
   void $ symbol "%"
   alias' <- parseAlias
-  Struct alias' <$> braces (try arrow <|> keywords)
+  E.Struct alias' <$> braces (try arrow <|> keywords')
   where
     arrow = commaSeparated1 atomKeyValue
-    keywords = commaSeparated mapKeywords
+    keywords' = commaSeparated mapKeywords
 
+parseStructUpdate :: Parser E.EExpr
 parseStructUpdate = do
   void $ symbol "%"
   alias' <- parseAlias
@@ -704,55 +476,55 @@ parseStructUpdate = do
     braces $ do
       lhs <- lexeme' parseMapExpr
       void $ symbol' "|"
-      rhs <- try arrow <|> keywords
-      pure $ StructUpdate alias' lhs rhs
+      rhs <- try arrow <|> keywords'
+      pure $ E.StructUpdate alias' lhs rhs
   pure mapUpdate
   where
     arrow = commaSeparated1 atomKeyValue
-    keywords = commaSeparated mapKeywords
+    keywords' = commaSeparated mapKeywords
 
-parseAtom :: Parser EExpr
-parseAtom = Atom <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
+parseAtom :: Parser E.EExpr
+parseAtom = E.Atom <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
 
-parseString :: Parser EExpr
-parseString = String <$!> (try multiString <|> string)
+parseString :: Parser E.EExpr
+parseString = E.String <$!> (try multiString <|> string)
 
-parseCharlist :: Parser EExpr
-parseCharlist = Charlist <$!> charlist
+parseCharlist :: Parser E.EExpr
+parseCharlist = E.Charlist <$!> charlist
 
-parseVariable :: Parser EExpr
-parseVariable = Variable <$!> variable
+parseVariable :: Parser E.EExpr
+parseVariable = E.Variable <$!> variable
 
-parseInteger :: Parser EExpr -- notFollowedByIdentifierStart?
-parseInteger = Integer <$> integer
+parseInteger :: Parser E.EExpr -- notFollowedByIdentifierStart?
+parseInteger = E.Integer <$> integer
 
-parseFloat :: Parser EExpr -- notFollowedByIdentifierStart?
-parseFloat = Float <$> float
+parseFloat :: Parser E.EExpr -- notFollowedByIdentifierStart?
+parseFloat = E.Float <$> float
 
-parseNonQualifiedCall :: Parser EExpr
+parseNonQualifiedCall :: Parser E.EExpr
 parseNonQualifiedCall =
-  liftA2 NonQualifiedCall identifier (parensArgs <|> spacesArgs)
+  liftA2 E.NonQualifiedCall identifier (parensArgs <|> spacesArgs)
 
-parseQualifiedCall :: Parser EExpr
+parseQualifiedCall :: Parser E.EExpr
 parseQualifiedCall = do
   alias' <- parseAlias
   void $ C.char '.'
   name <- identifier <|> strictString <|> strictCharlist
   args <- parensArgs <|> spacesArgs
-  pure $ QualifiedCall alias' name args
+  pure $ E.QualifiedCall alias' name args
 
-parseRightArrow :: Parser EExpr
+parseRightArrow :: Parser E.EExpr
 parseRightArrow = do
   void $ optional (C.char ' ')
   lhs <- optional (try $ parensArgs <|> spacesArgs')
   void $ rightArrow
   rhs <- try parseBlock2 <|> parseExpr
   case lhs of
-    Just lhs' -> pure $ BinaryOp RightArrow (List lhs') rhs
-    Nothing -> pure $ BinaryOp RightArrow (List []) rhs
+    Just lhs' -> pure $ E.BinaryOp E.RightArrow (E.List lhs') rhs
+    Nothing -> pure $ E.BinaryOp E.RightArrow (E.List []) rhs
 
 -- This is wrong in so many ways...
-parseAccess :: Parser EExpr
+parseAccess :: Parser E.EExpr
 parseAccess = do
   void $
     lookAhead
@@ -761,9 +533,9 @@ parseAccess = do
   void $ symbol "["
   index <- parseExpr
   void $ symbol "]"
-  pure $ QualifiedCall (Alias ["Access"]) "get" [expr, index]
+  pure $ E.QualifiedCall (E.Alias ["Access"]) "get" [expr, index]
 
-parseAny :: Parser EExpr
+parseAny :: Parser E.EExpr
 parseAny =
   (try parseStruct <?> "struct") <|> (try parseMap <?> "map") <|>
   (try parseStructUpdate <?> "map update") <|>
@@ -783,7 +555,7 @@ parseAny =
   (parseVariable <?> "variable") <|>
   (parseAlias <?> "alias")
 
-parseExpr :: Parser EExpr
+parseExpr :: Parser E.EExpr
 parseExpr =
   makeExprParser
     ((try parseAccess <?> "access") <|> (try $ parens parseRightArrow) <|>
@@ -791,14 +563,14 @@ parseExpr =
      parseAny)
     opsTable
 
-parseAccessExpr :: Parser EExpr
+parseAccessExpr :: Parser E.EExpr
 parseAccessExpr =
   makeExprParser
     ((try $ parens parseRightArrow) <|> parens parseAccessExpr <|> parseAny)
     opsTable
 
 -- Ugly hack to avoid parsing | as a binary op in structs and maps
-parseMapExpr :: Parser EExpr
+parseMapExpr :: Parser E.EExpr
 parseMapExpr =
   makeExprParser
     ((try $ parens parseRightArrow) <|> parens parseMapExpr <|> parseAny)

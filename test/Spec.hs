@@ -1,4 +1,4 @@
-import qualified Lib as E (EExpr(..), Operator(..))
+import qualified Expr as E (EExpr(..), Operator(..))
 import Lib
   ( exprParser
   , listKeywords
@@ -87,16 +87,16 @@ main =
       it "parses a struct" $
         parse parseStruct "" "%Some.Alias{:a => 1, :b => 2}" `shouldParse`
         E.Struct
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.map = [(E.Atom "a", E.Integer 1), (E.Atom "b", E.Integer 2)]
         }
       it "parses an empty struct" $
         parse parseStruct "" "%Some.Alias{}" `shouldParse`
-        E.Struct {E.alias' = E.Alias ["Some", "Alias"], E.map = []}
+        E.Struct {E.alias = E.Alias ["Some", "Alias"], E.map = []}
       it "parses a struct with keyword notation" $
         parse parseStruct "" "%Some.Alias{a: 1, b: 2}" `shouldParse`
         E.Struct
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.map = [(E.Atom "a", E.Integer 1), (E.Atom "b", E.Integer 2)]
         }
       it "does not parse a struct with mixed notations" $
@@ -181,32 +181,32 @@ main =
       it "parses a /2 qualified call" $
         parse parseQualifiedCall "" "Some.Alias.func!(1, 2)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
       it "parses a /1 qualified call" $
         parse parseQualifiedCall "" "Some.Alias.func!(1)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "func!"
         , E.args = [E.Integer 1]
         }
       it "parses a /0 qualified call" $
         parse parseQualifiedCall "" "Some.Alias.func!()" `shouldParse`
         E.QualifiedCall
-        {E.alias' = E.Alias ["Some", "Alias"], E.name = "func!", E.args = []}
+        {E.alias = E.Alias ["Some", "Alias"], E.name = "func!", E.args = []}
       it "parses a spaced qualified call" $
         parse parseQualifiedCall "" "Some.Alias.func! 1, 2" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
       it "parses a spaced qualified call with a do block" $ do
         parse parseQualifiedCall "" "Some.Alias.func! 1, 2 do 1;2; end" `shouldParse`
           E.QualifiedCall
-          { E.alias' = E.Alias ["Some", "Alias"]
+          { E.alias = E.Alias ["Some", "Alias"]
           , E.name = "func!"
           , E.args =
               [ E.Integer 1
@@ -217,7 +217,7 @@ main =
           }
         parse parseQualifiedCall "" "Some.Alias.func! 1, 2 do 1;2 end" `shouldParse`
           E.QualifiedCall
-          { E.alias' = E.Alias ["Some", "Alias"]
+          { E.alias = E.Alias ["Some", "Alias"]
           , E.name = "func!"
           , E.args =
               [ E.Integer 1
@@ -228,7 +228,7 @@ main =
           }
         parse parseQualifiedCall "" "Some.Alias.func! 1, 2 do \n1\n2\n end" `shouldParse`
           E.QualifiedCall
-          { E.alias' = E.Alias ["Some", "Alias"]
+          { E.alias = E.Alias ["Some", "Alias"]
           , E.name = "func!"
           , E.args =
               [ E.Integer 1
@@ -240,14 +240,14 @@ main =
       it "parses a quoted qualified call" $
         parse parseQualifiedCall "" "Some.Alias.\"a func!\"(1, 2)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "a func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
       it "parses a ' quoted qualified call" $
         parse parseQualifiedCall "" "Some.Alias.'a func!'(1, 2)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "a func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
@@ -301,16 +301,16 @@ main =
       it "parses a struct" $
         parse parseExpr "" "%Some.Alias{:a => 1, :b => 2}" `shouldParse`
         E.Struct
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.map = [(E.Atom "a", E.Integer 1), (E.Atom "b", E.Integer 2)]
         }
       it "parses an empty struct" $
         parse parseExpr "" "%Some.Alias{}" `shouldParse`
-        E.Struct {E.alias' = E.Alias ["Some", "Alias"], E.map = []}
+        E.Struct {E.alias = E.Alias ["Some", "Alias"], E.map = []}
       it "parses a struct with keyword notation" $
         parse parseExpr "" "%Some.Alias{a: 1, b: 2}" `shouldParse`
         E.Struct
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.map = [(E.Atom "a", E.Integer 1), (E.Atom "b", E.Integer 2)]
         }
       it "does not parse a struct with mixed notations" $
@@ -359,39 +359,39 @@ main =
       it "parses a /2 qualified call" $
         parse parseExpr "" "Some.Alias.func!(1, 2)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
       it "parses a /1 qualified call" $
         parse parseExpr "" "Some.Alias.func!(1)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "func!"
         , E.args = [E.Integer 1]
         }
       it "parses a /0 qualified call" $
         parse parseExpr "" "Some.Alias.func!()" `shouldParse`
         E.QualifiedCall
-        {E.alias' = E.Alias ["Some", "Alias"], E.name = "func!", E.args = []}
+        {E.alias = E.Alias ["Some", "Alias"], E.name = "func!", E.args = []}
       it "parses a spaced qualified call" $
         parse parseExpr "" "Some.Alias.func! 1, 2" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
       it "parses a quoted qualified call" $
         parse parseExpr "" "Some.Alias.\"a func!\"(1, 2)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "a func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
       it "parses a ' quoted qualified call" $
         parse parseExpr "" "Some.Alias.'a func!'(1, 2)" `shouldParse`
         E.QualifiedCall
-        { E.alias' = E.Alias ["Some", "Alias"]
+        { E.alias = E.Alias ["Some", "Alias"]
         , E.name = "a func!"
         , E.args = [E.Integer 1, E.Integer 2]
         }
