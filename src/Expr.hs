@@ -1,4 +1,7 @@
-module Expr where
+module Expr
+  ( EExpr(..)
+  , Operator(..)
+  ) where
 
 import Data.List (intercalate)
 import Data.Typeable (Typeable)
