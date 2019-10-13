@@ -1,19 +1,14 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module Lib where
 
 import Control.Applicative ((<|>), empty, liftA2, liftA3, optional)
 import Control.Monad (MonadPlus, (<$!>), void)
 import Control.Monad.Combinators.Expr (makeExprParser)
 import Control.Monad.Combinators.Expr (Operator(InfixL, InfixR, Prefix))
-import Control.Monad.Reader (MonadReader, ReaderT(..))
 import Data.Char (isSpace)
-import qualified Data.Map as M (Map, foldrWithKey)
 import Data.Void
-import qualified Expr as E (EExpr(..), Operator(..), showExpr)
+import qualified Expr as E (EExpr(..), Operator(..))
 import Text.Megaparsec
-  ( ParseErrorBundle
-  , Parsec
+  ( Parsec
   , (<?>)
   , between
   , count'
@@ -52,20 +47,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
   )
 import Text.Megaparsec.Error (errorBundlePretty)
 
-type Env = M.Map String E.EExpr
-
 type Parser = Parsec Void String
-
-type ParseError = ParseErrorBundle String Void
-
-newtype Eval a =
-  Eval (ReaderT Env IO a)
-  deriving (Monad, Applicative, Functor, MonadReader Env)
-
-showEnv :: Env -> String
-showEnv env =
-  concat $
-  M.foldrWithKey (\k v a -> "(" : k : " " : E.showExpr v : "), " : a) [] env
 
 sepEndBy2 :: MonadPlus f => f a -> f sep -> f [a]
 sepEndBy2 p sep = liftA2 (:) (p <* sep) (sepEndBy1 p sep)
@@ -246,10 +228,6 @@ integer = lexeme L.decimal -- TODO: should allow `_`
 
 float :: Parser Float
 float = lexeme L.float -- TODO: should allow `_`
-
-rword :: String -> Parser ()
-rword w =
-  lexeme . try $ C.string w *> notFollowedBy (C.lowerChar <|> C.char '_')
 
 variable :: Parser String
 variable = lexeme $ identifier <* notFollowedBy (C.char ':')
