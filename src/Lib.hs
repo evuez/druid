@@ -46,6 +46,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
   , symbol
   )
 import Text.Megaparsec.Error (errorBundlePretty)
+import Text.Megaparsec.Debug (dbg)
 
 type Parser = Parsec Void String
 
@@ -558,29 +559,6 @@ parseMapExpr =
     opsTableWithNoPipe = xs ++ ys
     (xs, (_:ys)) = splitAt 15 opsTable
 
---
--- Preprocessor
---
-data Mode
-  = Normal
-  | Match String
-
-preprocess :: Mode -> String -> String -> String
-preprocess Normal (x:xs) p
-  | x `elem` ['&', '%'] = preprocess (Match [x]) xs (x : p)
-  | otherwise = preprocess Normal xs (x : p)
-preprocess (Match "&") (' ':xs) p = preprocess (Match "&") xs p
-preprocess (Match "&") ('&':xs) p = preprocess (Match "& &") xs ('&' : '(' : p)
-preprocess (Match "& &") (' ':xs) p = preprocess Normal xs (' ' : ')' : p)
-preprocess (Match "& &") [] p = preprocess Normal [] (')' : p)
-preprocess (Match "& &") (x:xs) p = preprocess (Match "& &") xs (x : p)
-preprocess (Match "%") ('{':xs) p = preprocess (Match "%{") xs ('{' : p)
-preprocess (Match "%") (' ':xs) p = preprocess (Match "%") xs (' ' : p)
-preprocess (Match "%") (x:xs) p = preprocess (Match "%") xs (x : p)
-preprocess (Match "%{") ('|':xs) p = preprocess Normal xs ('~' : '|' : '~' : p)
-preprocess (Match "%{") (x:xs) p = preprocess (Match "%{") xs (x : p)
-preprocess (Match _) (x:xs) p = preprocess Normal xs (x : p)
-preprocess _ [] p = reverse p
 
 --
 -- REPL

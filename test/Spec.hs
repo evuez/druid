@@ -23,6 +23,8 @@ import Lib
   , parseTuple
   , parseVariable
   )
+import qualified Preprocessor as P (Mode(..))
+import Preprocessor (preprocess)
 import Test.Hspec
 import Test.Hspec.Megaparsec (shouldFailOn, shouldParse, shouldSucceedOn)
 import Text.Megaparsec (parse)
@@ -749,7 +751,7 @@ main =
           (E.Alias ["Access"])
           "get"
           [E.Struct (E.Alias ["Struct"]) [], E.Integer 1]
-    describe "misc" $ do
+    describe "misc parsers" $ do
       it "parses \"def a when a in ~w[b] do\\n1\\nend\"" $
         parse parseExpr "" `shouldSucceedOn` "def a when b in ~W[c] do\n1\nend"
       it "parses \"fn -> 1 end\"" $
@@ -758,3 +760,16 @@ main =
         parse parseExpr "" `shouldSucceedOn` "[1 | 2\n ]"
       it "parses \"a[:b] || :c\"" $
         parse parseExpr "" `shouldSucceedOn` "a[:b] || :c"
+    describe "preprocessor" $ do
+      it "converts \"& &1\" to \"&(&1)\"" $
+        preprocess P.Normal "& &1" "" `shouldBe` "&(&1)"
+      it "converts \"|\" to \"~|~\" in maps" $
+        preprocess P.Normal "%{a | b}" "" `shouldBe` "%{a ~|~ b}"
+      it "converts \"|\" to \"~|~\" in structs" $
+        preprocess P.Normal "%Some.Struct{a | b}" "" `shouldBe` "%Some.Struct{a ~|~ b}"
+      it "does not convert \"|||\" to \"~|~\" in maps" $
+        preprocess P.Normal "%{a ||| b}" "" `shouldBe` "%{a ||| b}"
+      it "does not convert \"||\" to \"~|~\" in maps" $
+        preprocess P.Normal "%{a || b}" "" `shouldBe` "%{a || b}"
+      it "does not convert \"|>\" to \"~|~\" in maps" $
+        preprocess P.Normal "%{a |> b}" "" `shouldBe` "%{a |> b}"
