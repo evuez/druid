@@ -1,7 +1,7 @@
 module Main where
 
-import Lib (readSource)
+import Lib (readAST)
 import System.Environment (getArgs)
 
 main :: IO ()
-main = getArgs >>= readSource . head
+main = getArgs >>= readAST . head

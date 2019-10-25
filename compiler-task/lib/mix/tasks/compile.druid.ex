@@ -13,8 +13,9 @@ defmodule Mix.Tasks.Compile.Druid do
     all_paths = MapSet.new(Mix.Utils.extract_files(srcs, ["ex"]))
 
     all_paths
-    |> Stream.map(&File.read!/1)
-    |> Stream.map(&Code.string_to_quoted/1)
+    |> Stream.map(fn path -> {path, File.read!(path)} end)
+    |> Stream.map(fn {path, source} -> Code.string_to_quoted!(source, file: path) end)
+    |> Stream.map(fn ast -> System.cmd("druid", [inspect(ast, limit: :infinity)]) end)
     |> Enum.to_list()
     |> IO.inspect()
 
