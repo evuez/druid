@@ -1,11 +1,13 @@
 module Parser
   ( parser
+  , ParseError
   ) where
 
 import Control.Applicative ((<|>), empty, liftA2)
 import Control.Monad ((<$!>))
 import Data.Void
-import qualified Expr as E (EExpr(..), Operator(..))
+import Data.Void (Void)
+import qualified Expr as E (EExpr(..))
 import Text.Megaparsec
   ( Parsec
   , (<?>)
@@ -33,8 +35,11 @@ import qualified Text.Megaparsec.Char.Lexer as L
   , space
   , symbol
   )
+import Text.Megaparsec.Error (ParseErrorBundle)
 
 type Parser = Parsec Void String
+
+type ParseError = ParseErrorBundle String Void
 
 --
 -- Lexer
