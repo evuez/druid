@@ -42,6 +42,11 @@ data EExpr
   | Variable String
   deriving (Typeable, Eq)
 
+data AExpr
+  = Pair (EExpr, EExpr)
+  | Triple (EExpr, EExpr)
+  | Keywords [(EExpr, EExpr)]
+
 data Operator
   = And
   | Application

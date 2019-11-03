@@ -49,9 +49,7 @@ main =
         parseAndCompact "{:__block__, [], [1, 2, 3]}" `shouldBe`
           Right (E.Block [E.Integer 1, E.Integer 2, E.Integer 3])
       it "parses a case" $ do
-        parseAndCompact
-          "{:case, [], [1, [do: [{:->, [], [[2], 3]}, {:->, [], [[4], 5]}]]]}" `shouldBe`
-          Right (E.Atom "key")
+        parseAndCompact "{:case, [], [1, [do: [{:->, [], [[2], 3]}, {:->, [], [[4], 5]}]]]}" `shouldBe` Right (E.NonQualifiedCall "case" [ E.Integer 1 , E.List [E.Tuple [E.Atom "do", E.List [E.NonQualifiedCall "->" [E.List [E.Integer 2], E.Integer 3], E.NonQualifiedCall "->" [E.List [E.Integer 4], E.Integer 5]]]]])
       it "parses a cond" $ do
         parseAndCompact "{:cond, [], [[do: [{:->, [], [[true], false]}]]]}" `shouldBe`
           Right (E.Atom "key")
