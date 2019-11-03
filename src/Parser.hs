@@ -5,7 +5,6 @@ module Parser
 
 import Control.Applicative ((<|>), empty, liftA2)
 import Control.Monad ((<$!>))
-import Data.Void
 import Data.Void (Void)
 import qualified Expr as E (EExpr(..))
 import Text.Megaparsec
@@ -97,6 +96,7 @@ unquotedAtom =
    (C.string "||") <|>
    (C.string "|>") <|>
    (C.string "|") <|>
+   (C.string "{}") <|>
    (C.string "^^^") <|>
    (C.string "^") <|>
    (C.string "\\") <|>
@@ -114,6 +114,7 @@ unquotedAtom =
    (C.string "<>") <|>
    (C.string "<=") <|>
    (C.string "<<~") <|>
+   (C.string "<<>>") <|>
    (C.string "<<<") <|>
    (C.string "<-") <|>
    (C.string "<") <|>
@@ -124,7 +125,6 @@ unquotedAtom =
    (C.string "->") <|>
    (C.string "--") <|>
    (C.string "-") <|>
-   (C.string "-") <|>
    (C.string "++") <|>
    (C.string "+") <|>
    (C.string "+") <|>
@@ -132,6 +132,7 @@ unquotedAtom =
    (C.string "&&&") <|>
    (C.string "&&") <|>
    (C.string "&") <|>
+   (C.string "%{}") <|>
    (C.string "!==") <|>
    (C.string "!=") <|>
    (C.string "!") <|>

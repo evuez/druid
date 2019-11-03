@@ -8,7 +8,7 @@ import Data.Typeable (Typeable)
 
 data EExpr
   = Atom String
-  | Alias [String]
+  | Alias [String] -- Alias EExpr String
   | Binary [EExpr]
   | BinaryOp Operator
              EExpr
