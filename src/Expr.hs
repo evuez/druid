@@ -1,5 +1,6 @@
 module Expr
   ( EExpr(..)
+  , AExpr(..)
   , Operator(..)
   ) where
 
@@ -8,7 +9,7 @@ import Data.Typeable (Typeable)
 
 data EExpr
   = Atom String
-  | Alias [String] -- Alias EExpr String
+  | Alias (EExpr, [String])
   | Binary [EExpr]
   | BinaryOp Operator
              EExpr
@@ -24,8 +25,10 @@ data EExpr
               , updates :: [(EExpr, EExpr)] }
   | NonQualifiedCall { name :: String
                      , args :: [EExpr] }
-  | QualifiedCall { alias :: EExpr
+  | QualifiedCall { expr :: EExpr
                   , name :: String
+                  , args :: [EExpr] }
+  | AnonymousCall { expr :: EExpr
                   , args :: [EExpr] }
   | Sigil { ident :: Char
           , contents :: String
@@ -43,9 +46,15 @@ data EExpr
   deriving (Typeable, Eq)
 
 data AExpr
-  = Pair (EExpr, EExpr)
-  | Triple (EExpr, EExpr)
-  | Keywords [(EExpr, EExpr)]
+  = APair (AExpr, AExpr)
+  | ATriple (AExpr, AExpr, AExpr)
+  | AKeywords [(AExpr, AExpr)]
+  | AList [AExpr]
+  | AAtom String
+  | AInteger Integer
+  | AFloat Float
+  | AString String
+  | ACharlist String
 
 data Operator
   = And
@@ -101,27 +110,30 @@ data Operator
   | When
   deriving (Eq)
 
+instance Show AExpr where
+  show = showAExpr
+
 instance Show EExpr where
   show = showExpr
 
--- TODO: Display ast form instead
 showExpr :: EExpr -> String
 showExpr (Atom atom) = concat [":", atom]
-showExpr (Alias alias') =
-  concat ["{:__aliases__, [], [:", intercalate ", :" alias', "]}"]
+showExpr (Alias (expr, aliases)) =
+  concat
+    ["{:__aliases__, [], [", show expr, ", :", intercalate ", :" aliases, "]}"]
 showExpr (Block exprs) =
-  concat ["{:__block__, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
+  concat ["{:__block__, [], [", intercalate ", " $ show <$> exprs, "]}"]
 showExpr (Integer integer) = show integer
 showExpr (Float float) = show float
 showExpr (String text) = concat ["\"", text, "\""]
 showExpr (Charlist text) = concat ["'", text, "'"]
 showExpr (Variable name') = concat ["{:", name', ", [], Elixir}"]
 showExpr (Tuple [expr1, expr2]) =
-  concat ["{", showExpr expr1, ", ", showExpr expr2, "}"]
+  concat ["{", show expr1, ", ", show expr2, "}"]
 showExpr (Tuple exprs) =
-  concat ["{:{}, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
+  concat ["{:{}, [], [", intercalate ", " $ show <$> exprs, "]}"]
 showExpr (Binary exprs) =
-  concat ["{:<<>>, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
+  concat ["{:<<>>, [], [", intercalate ", " $ show <$> exprs, "]}"]
 showExpr (Sigil ident' contents' modifiers') =
   concat
     [ "{:sigil_"
@@ -132,60 +144,86 @@ showExpr (Sigil ident' contents' modifiers') =
     , modifiers'
     , "']}"
     ]
-showExpr (List exprs) = concat ["[", intercalate ", " $ showExpr <$> exprs, "]"]
+showExpr (List exprs) = concat ["[", intercalate ", " $ show <$> exprs, "]"]
 showExpr (Map keyValues) =
   concat
     [ "%{"
     , intercalate ", " $
-      (\(k, v) -> concat [showExpr k, " => ", showExpr v]) <$> keyValues
+      (\(k, v) -> concat [show k, " => ", show v]) <$> keyValues
     , "}"
     ]
 showExpr (MapUpdate expr' updates') =
   concat
     [ "{:%{}, [], [{:|, [], ["
-    , showExpr expr'
+    , show expr'
     , ", ["
     , intercalate ", " $
-      (\(k, v) -> concat ["{", showExpr k, ", ", showExpr v, "}"]) <$> updates'
+      (\(k, v) -> concat ["{", show k, ", ", show v, "}"]) <$> updates'
     , "]]}]}"
     ]
 showExpr (Struct alias' keyValues) =
   concat
     [ "%"
-    , showExpr alias'
+    , show alias'
     , "{"
     , intercalate ", " $
-      (\(k, v) -> concat [showExpr k, " => ", showExpr v]) <$> keyValues
+      (\(k, v) -> concat [show k, " => ", show v]) <$> keyValues
     , "}"
     ]
 showExpr (StructUpdate alias' expr' updates') =
   concat
     [ "{:%, [], [{:__aliases__, [], [:"
-    , showExpr alias'
+    , show alias'
     , "]}, {:%{}, [], [{:|, [], ["
-    , showExpr expr'
+    , show expr'
     , ", ["
     , intercalate ", " $
-      (\(k, v) -> concat ["{", showExpr k, ", ", showExpr v, "}"]) <$> updates'
+      (\(k, v) -> concat ["{", show k, ", ", show v, "}"]) <$> updates'
     , "]]}]}]}"
     ]
-showExpr (QualifiedCall alias' name' args') =
+showExpr (QualifiedCall expr' name' args') =
   concat
-    [ "{:., [], ["
-    , showExpr alias'
+    [ "QualifiedCall<{{:., [], ["
+    , show expr'
     , ", :"
     , name'
     , "]}, [], ["
-    , intercalate ", " $ showExpr <$> args'
-    , "]}"
+    , intercalate ", " $ show <$> args'
+    , "]}>"
     ]
 showExpr (NonQualifiedCall name' args') =
-  concat ["{:", name', ", [], [", intercalate ", " $ showExpr <$> args', "]}"]
+  concat
+    [ "NonQualifiedCall<{:"
+    , name'
+    , ", [], ["
+    , intercalate ", " $ show <$> args'
+    , "]}>"
+    ]
+showExpr (AnonymousCall expr' args') =
+  concat
+    [ "AnonymousCall<{{:., [], [{:"
+    , show expr'
+    , ", [], Elixir}]}, [], ["
+    , intercalate ", " $ show <$> args'
+    , "]}>"
+    ]
 showExpr (BinaryOp op a b) =
-  concat ["{:", showOp op, ", [], [", showExpr a, ", ", showExpr b, "]}"]
-showExpr (UnaryOp op a) = concat ["{:", showOp op, ", [], [", showExpr a, "]}"]
+  concat ["{:", showOp op, ", [], [", show a, ", ", show b, "]}"]
+showExpr (UnaryOp op a) = concat ["{:", showOp op, ", [], [", show a, "]}"]
 showExpr (Fn exprs) =
-  concat ["{:fn, [], [", intercalate ", " $ showExpr <$> exprs, "]}"]
+  concat ["{:fn, [], [", intercalate ", " $ show <$> exprs, "]}"]
+
+showAExpr :: AExpr -> String
+showAExpr (APair (a, b)) = concat ["{", show a, ", ", show b, "}"]
+showAExpr (ATriple (a, b, c)) =
+  concat ["{:{}, [], [", show a, ", ", show b, ", ", show c, "]}"]
+showAExpr (AKeywords _) = "keywords"
+showAExpr (AList a) = show a
+showAExpr (AAtom a) = concat [":", a]
+showAExpr (AInteger a) = show a
+showAExpr (AFloat a) = show a
+showAExpr (AString a) = a
+showAExpr (ACharlist a) = a
 
 showOp :: Operator -> String
 showOp And = "&&"

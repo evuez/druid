@@ -1,6 +1,6 @@
 module Lib where
 
-import qualified Expr as E (EExpr(..))
+import qualified Expr as E (AExpr(..), EExpr(..))
 
 --  ( readAST, parseAST
 --  )
@@ -9,38 +9,60 @@ import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (errorBundlePretty)
 
 --
--- Compact
+-- Reify
 --
 -- E.Expr -> Reader E.Expr (Expr + metadata)
-compact :: E.EExpr -> E.EExpr
-compact (E.Atom a) = E.Atom a
-compact (E.Float a) = E.Float a
-compact (E.Integer a) = E.Integer a
-compact (E.List a) = E.List a
-compact (E.String a) = E.String a
-compact (E.Tuple [a, b]) = E.Tuple [a, b]
-compact (E.Tuple [E.Atom name, E.List meta, E.Atom "Elixir"]) = E.Variable name
-compact (E.Tuple [E.Atom "__block__", E.List meta, E.List exprs]) =
-  E.Block $ compact <$> exprs
-compact (E.Tuple [E.Atom "__aliases__", E.List meta, E.List (a:aliases)]) =
-  E.Alias (raw a : fmap raw aliases)
-compact (E.Tuple [E.Atom "{}", E.List meta, E.List exprs]) = E.Tuple exprs
-compact (E.Tuple [E.Atom "%{}", E.List meta, E.List []]) = E.Map []
---compact (E.Tuple [E.Atom "%{}", E.List meta, E.List exprs@[(_, _)]]) = E.Map exprs
-compact (E.Tuple [E.Atom "<<>>", E.List meta, E.List exprs]) = E.Binary exprs
-compact (E.Tuple [E.Atom name, E.List meta, E.List args]) =
-  E.NonQualifiedCall name args
+reify :: E.AExpr -> E.EExpr
+reify (E.AAtom a) = E.Atom a
+reify (E.AFloat a) = E.Float a
+reify (E.AInteger a) = E.Integer a
+reify (E.AList a) = E.List $ reify <$> a
+reify (E.AKeywords a) = E.List $ (\(x, y) -> E.Tuple [reify x, reify y]) <$> a
+reify (E.AString a) = E.String a
+reify (E.APair (a, b)) = E.Tuple [reify a, reify b]
+reify (E.ATriple (E.AAtom name, E.AList meta, E.AAtom "Elixir")) =
+  E.Variable name
+reify (E.ATriple (E.AAtom "__block__", E.AList meta, E.AList exprs)) =
+  E.Block $ reify <$> exprs
+reify (E.ATriple (E.AAtom "__aliases__", E.AList meta, E.AList (a:aliases))) =
+  E.Alias (reify a, fmap raw aliases)
+reify (E.ATriple (E.AAtom "{}", E.AList meta, E.AList exprs)) =
+  E.Tuple $ reify <$> exprs
+reify (E.ATriple (E.AAtom "%{}", E.AList meta, E.AList [])) = E.Map []
+reify (E.ATriple (E.AAtom "%{}", E.AList meta, E.AKeywords kv)) =
+  E.Map $ both reify <$> kv
+reify (E.ATriple (E.AAtom "<<>>", E.AList meta, E.AList exprs)) =
+  E.Binary $ reify <$> exprs
+reify (E.ATriple (E.AAtom "fn", E.AList meta, E.AList exprs)) =
+  E.Fn $ reify <$> exprs
+reify (E.ATriple (E.ATriple (E.AAtom ".", E.AList meta', E.AList [lhs, E.AAtom rhs]), E.AList meta, E.AList args)) =
+  E.QualifiedCall (reify lhs) rhs (reify <$> args)
+reify (E.ATriple (E.ATriple (E.AAtom ".", E.AList meta', E.AList [expr]), E.AList meta, E.AList args)) =
+  E.AnonymousCall (reify expr) (reify <$> args)
+reify (E.ATriple (E.AAtom name, E.AList meta, E.AList args)) =
+  E.NonQualifiedCall name (reify <$> args)
 -- E.Atom ".", ... RemoteCall
 -- E.Atom ".", ... Fn
-compact (E.Tuple [E.Tuple a, E.List meta, E.List args]) =
-  E.Tuple [compact (E.Tuple a), E.List meta, E.List args]
+reify (E.ATriple (E.APair a, E.AList meta, E.AList args)) =
+  E.Tuple [reify $ E.APair a, E.List $ reify <$> meta, E.List $ reify <$> args]
+reify (E.ATriple (E.ATriple a, E.AList meta, E.AList args)) =
+  E.Tuple
+    [reify $ E.ATriple a, E.List $ reify <$> meta, E.List $ reify <$> args]
+reify (E.ATriple (E.AAtom name, E.AList meta, E.AKeywords args)) =
+  E.NonQualifiedCall name (reifyTuple <$> args)
 
-raw :: E.EExpr -> String
-raw (E.Atom a) = a
-raw (E.Tuple [E.Atom "__MODULE__", _, E.Atom "Elixir"]) = "CurrentModule"
-raw _ = "MODULE"
+--reify (E.ATriple (E.APair a, E.AList meta, E.AKeywords args)) = E.Tuple [reify $ E.APair a, E.List $ reify <$> meta, E.List $ reify <$> args]
+--reify (E.ATriple (E.ATriple a, E.AList meta, E.AKeywords args)) = E.Tuple [reify $ E.ATriple a, E.List $ reify <$> meta, E.List $ reify <$> args]
+reifyTuple :: (E.AExpr, E.AExpr) -> E.EExpr
+reifyTuple (x, y) = E.Tuple [reify x, reify y]
 
-parseAST :: String -> Either P.ParseError E.EExpr
+raw :: E.AExpr -> String
+raw (E.AAtom a) = a
+
+both :: (a -> b) -> (a, a) -> (b, b)
+both f (x, y) = (f x, f y)
+
+parseAST :: String -> Either P.ParseError E.AExpr
 parseAST = parse P.parser ""
 
 --

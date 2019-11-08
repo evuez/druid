@@ -3,10 +3,10 @@ module Parser
   , ParseError
   ) where
 
-import Control.Applicative ((<|>), empty, liftA2)
+import Control.Applicative ((<|>), empty, liftA2, liftA3)
 import Control.Monad ((<$!>))
 import Data.Void (Void)
-import qualified Expr as E (EExpr(..))
+import qualified Expr as E (AExpr(..))
 import Text.Megaparsec
   ( Parsec
   , (<?>)
@@ -57,6 +57,9 @@ braces = between (symbol "{") (symbol "}")
 
 squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol "[") (symbol "]")
+
+comma :: Parser String
+comma = symbol ","
 
 integer :: Parser Integer
 integer = lexeme L.decimal
@@ -150,54 +153,67 @@ specialAtom :: Parser String
 specialAtom = lexeme $ symbol "true" <|> symbol "false" <|> symbol "nil"
 
 --
-keywords :: (E.EExpr -> E.EExpr -> b) -> Parser b
-keywords wrapper =
+keywords :: Parser (E.AExpr, E.AExpr)
+keywords =
   liftA2
-    wrapper
-    (E.Atom <$!> (quotedAtomBody <|> unquotedAtomBody))
+    (\k v -> (k, v))
+    (E.AAtom <$!> (quotedAtomBody <|> unquotedAtomBody))
     (symbol ": " *> parseAny)
 
-listKeywords :: Parser E.EExpr
-listKeywords = keywords (\k v -> E.Tuple [k, v])
+pair :: Parser (E.AExpr, E.AExpr)
+pair = braces (liftA2 (,) (parseAny <* comma) parseAny)
 
 commaSeparated :: Parser a -> Parser [a]
-commaSeparated parser' = parser' `sepBy` (symbol ",")
+commaSeparated parser' = parser' `sepBy` comma
 
 --
 -- Parser
 --
-parseAtom :: Parser E.EExpr
-parseAtom = E.Atom <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
+parseAtom :: Parser E.AExpr
+parseAtom = E.AAtom <$!> (try unquotedAtom <|> quotedAtom <|> specialAtom)
 
-parseInteger :: Parser E.EExpr
-parseInteger = E.Integer <$> integer
+parseInteger :: Parser E.AExpr
+parseInteger = E.AInteger <$> integer
 
-parseFloat :: Parser E.EExpr
-parseFloat = E.Float <$> float
+parseFloat :: Parser E.AExpr
+parseFloat = E.AFloat <$> float
 
-parseString :: Parser E.EExpr
-parseString = E.String <$!> string
+parseString :: Parser E.AExpr
+parseString = E.AString <$!> string
 
-parseCharlist :: Parser E.EExpr
-parseCharlist = E.Charlist <$!> charlist
+parseCharlist :: Parser E.AExpr
+parseCharlist = E.ACharlist <$!> charlist
 
-parseList :: Parser E.EExpr
-parseList = E.List <$> (try regularList <|> keywordList)
+parseList :: Parser E.AExpr
+parseList = try emptyList <|> try pairsList <|> try regularList <|> keywordsList
   where
-    regularList = squareBrackets $ commaSeparated parseAny
-    keywordList = squareBrackets $ commaSeparated listKeywords
+    emptyList = E.AList <$> (squareBrackets $ many empty)
+    pairsList = E.AKeywords <$> (squareBrackets $ commaSeparated pair)
+    regularList = E.AList <$> (squareBrackets $ commaSeparated parseAny)
+    keywordsList = E.AKeywords <$> (squareBrackets $ commaSeparated keywords)
 
-parseTuple :: Parser E.EExpr
-parseTuple = E.Tuple <$> braces (commaSeparated parseAny)
+parsePair :: Parser E.AExpr
+parsePair = E.APair <$> braces (liftA2 (,) (parseAny <* comma) parseAny)
 
-parseAny :: Parser E.EExpr
+parseTriple :: Parser E.AExpr
+parseTriple =
+  E.ATriple <$>
+  braces
+    (liftA3
+       (,,)
+       (parseAny <* comma)
+       (parseList <* comma)
+       (parseList <|> parseAtom))
+
+parseAny :: Parser E.AExpr
 parseAny =
   (parseAtom <?> "struct") <|> (parseInteger <?> "integer") <|>
   (parseFloat <?> "float") <|>
   (parseString <?> "string") <|>
   (parseCharlist <?> "charlist") <|>
   (parseList <?> "list") <|>
-  (parseTuple <?> "tuple")
+  (try parseTriple <?> "tripe") <|>
+  (parsePair <?> "pair")
 
-parser :: Parser E.EExpr
+parser :: Parser E.AExpr
 parser = between spaceConsumer eof parseAny
