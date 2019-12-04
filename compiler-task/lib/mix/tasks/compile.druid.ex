@@ -14,8 +14,8 @@ defmodule Mix.Tasks.Compile.Druid do
 
     all_paths
     |> Stream.map(fn path -> {path, File.read!(path)} end)
-    |> Stream.map(fn {path, source} -> Code.string_to_quoted!(source, file: path) end)
-    |> Stream.map(fn ast -> System.cmd("druid", [inspect(ast, limit: :infinity)]) end)
+    |> Stream.map(fn {path, source} -> {path, Code.string_to_quoted!(source, file: path)} end)
+    |> Stream.map(fn {_path, ast} -> System.cmd("druid", [inspect(ast, limit: :infinity)]) end)
     |> Enum.to_list()
     |> IO.inspect()
 

@@ -2,46 +2,62 @@ module Expr
   ( EExpr(..)
   , AExpr(..)
   , Operator(..)
+  , WExpr
+  , Meta(..)
   ) where
 
+import Control.Monad.Writer (Writer, tell)
 import Data.List (intercalate)
 import Data.Typeable (Typeable)
 
+data Meta
+  = Meta { line :: Integer }
+  | Empty
+  deriving (Show, Eq)
+
+type WExpr = Writer Meta EExpr
+
+instance Monoid Meta where
+  mempty = Empty
+
+instance Semigroup Meta where
+  (<>) = const
+
 data EExpr
   = Atom String
-  | Alias (EExpr, [String])
-  | Binary [EExpr]
+  | Alias (WExpr, [String])
+  | Binary [WExpr]
   | BinaryOp Operator
-             EExpr
-             EExpr
-  | Block [EExpr]
+             WExpr
+             WExpr
+  | Block [WExpr]
   | Charlist String
   | Float Float
-  | Fn [EExpr]
+  | Fn [WExpr]
   | Integer Integer
-  | List [EExpr]
-  | Map [(EExpr, EExpr)]
-  | MapUpdate { expr :: EExpr
-              , updates :: [(EExpr, EExpr)] }
+  | List [WExpr]
+  | Map [(WExpr, WExpr)]
+  | MapUpdate { expr :: WExpr
+              , updates :: [(WExpr, WExpr)] }
   | NonQualifiedCall { name :: String
-                     , args :: [EExpr] }
-  | QualifiedCall { expr :: EExpr
+                     , args :: [WExpr] }
+  | QualifiedCall { expr :: WExpr
                   , name :: String
-                  , args :: [EExpr] }
-  | AnonymousCall { expr :: EExpr
-                  , args :: [EExpr] }
+                  , args :: [WExpr] }
+  | AnonymousCall { expr :: WExpr
+                  , args :: [WExpr] }
   | Sigil { ident :: Char
           , contents :: String
           , modifiers :: [Char] }
   | String String
-  | Struct { alias :: EExpr
-           , map :: [(EExpr, EExpr)] }
-  | StructUpdate { alias :: EExpr
-                 , expr :: EExpr
-                 , updates :: [(EExpr, EExpr)] }
-  | Tuple [EExpr]
+  | Struct { alias :: WExpr
+           , map :: [(WExpr, WExpr)] }
+  | StructUpdate { alias :: WExpr
+                 , expr :: WExpr
+                 , updates :: [(WExpr, WExpr)] }
+  | Tuple [WExpr]
   | UnaryOp Operator
-            EExpr
+            WExpr
   | Variable String
   deriving (Typeable, Eq)
 
@@ -217,7 +233,8 @@ showAExpr :: AExpr -> String
 showAExpr (APair (a, b)) = concat ["{", show a, ", ", show b, "}"]
 showAExpr (ATriple (a, b, c)) =
   concat ["{:{}, [], [", show a, ", ", show b, ", ", show c, "]}"]
-showAExpr (AKeywords _) = "keywords"
+showAExpr (AKeywords pairs) =
+  concat ["[", intercalate ", " $ show <$> pairs, "]"]
 showAExpr (AList a) = show a
 showAExpr (AAtom a) = concat [":", a]
 showAExpr (AInteger a) = show a

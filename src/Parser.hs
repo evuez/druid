@@ -185,12 +185,15 @@ parseCharlist :: Parser E.AExpr
 parseCharlist = E.ACharlist <$!> charlist
 
 parseList :: Parser E.AExpr
-parseList = try emptyList <|> try pairsList <|> try regularList <|> keywordsList
+parseList =
+  try emptyList <|> try pairsList <|> try regularList <|> parseKeywords
   where
     emptyList = E.AList <$> (squareBrackets $ many empty)
     pairsList = E.AKeywords <$> (squareBrackets $ commaSeparated pair)
     regularList = E.AList <$> (squareBrackets $ commaSeparated parseAny)
-    keywordsList = E.AKeywords <$> (squareBrackets $ commaSeparated keywords)
+
+parseKeywords :: Parser E.AExpr
+parseKeywords = E.AKeywords <$> (squareBrackets $ commaSeparated keywords)
 
 parsePair :: Parser E.AExpr
 parsePair = E.APair <$> braces (liftA2 (,) (parseAny <* comma) parseAny)
@@ -202,7 +205,7 @@ parseTriple =
     (liftA3
        (,,)
        (parseAny <* comma)
-       (parseList <* comma)
+       (parseKeywords <* comma)
        (parseList <|> parseAtom))
 
 parseAny :: Parser E.AExpr
