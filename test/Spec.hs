@@ -2,10 +2,8 @@ import Control.Monad.Writer (runWriter, writer)
 import qualified Expr.Concrete as C (BlockVal(..), Expr(..), WExpr)
 import Lib (parseAST, reify)
 import qualified Meta as M (Meta(..))
-import qualified Parser as P (ParseError, parser)
+import qualified Parser as P (ParseError)
 import Test.Hspec
-import Test.Hspec.Megaparsec (shouldFailOn, shouldParse, shouldSucceedOn)
-import Text.Megaparsec (parse)
 
 main :: IO ()
 main =
