@@ -1,5 +1,6 @@
 module Lib
-  ( parseAST
+  ( decode
+  , parseAST
   , readAST
   , reify
   ) where
@@ -84,6 +85,9 @@ metaOrEmpty [] = M.Empty
 
 parseAST :: String -> Either P.ParseError A.Expr
 parseAST = parse P.parser ""
+
+decode :: String -> Either P.ParseError C.WExpr
+decode s = fmap reify (parse P.parser "" s)
 
 --
 -- REPL
