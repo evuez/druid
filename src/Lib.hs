@@ -5,7 +5,9 @@ module Lib
   ) where
 
 import Control.Monad.Writer (writer)
-import qualified Expr as E (AExpr(..), EExpr(..), Meta(..), WExpr)
+import qualified Meta as M (Meta(..))
+import qualified Expr.Concrete as C (Expr(..), WExpr, BlockVal(..))
+import qualified Expr.AST as A (Expr(..))
 import qualified Parser as P (ParseError, parser)
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (errorBundlePretty)
@@ -13,72 +15,72 @@ import Text.Megaparsec.Error (errorBundlePretty)
 --
 -- Reify
 --
-reify :: E.AExpr -> E.WExpr
-reify (E.AAtom a) = withMeta [] (E.Atom a)
-reify (E.AFloat a) = withMeta [] (E.Float a)
-reify (E.AInteger a) = withMeta [] (E.Integer a)
-reify (E.AList a) = withMeta [] (E.List $ reify <$> a)
-reify (E.AKeywords a) =
+reify :: A.Expr -> C.WExpr
+reify (A.Atom a) = withMeta [] (C.Atom a)
+reify (A.Float a) = withMeta [] (C.Float a)
+reify (A.Integer a) = withMeta [] (C.Integer a)
+reify (A.List a) = withMeta [] (C.List $ reify <$> a)
+reify (A.Keywords a) =
   withMeta
     []
-    (E.List $ (\(x, y) -> withMeta [] (E.Tuple [reify x, reify y])) <$> a)
-reify (E.AString a) = withMeta [] (E.String a)
-reify (E.APair (a, b)) = withMeta [] (E.Tuple [reify a, reify b])
-reify (E.ATriple (E.AAtom name, E.AKeywords meta, E.AAtom "Elixir")) =
-  withMeta meta (E.Variable name)
-reify (E.ATriple (E.AAtom name, E.AKeywords meta, E.AAtom "nil")) =
-  withMeta meta (E.Variable name)
-reify (E.ATriple (E.AAtom "__block__", E.AKeywords meta, E.AList exprs)) =
-  withMeta meta (E.Block $ reify <$> exprs)
-reify (E.ATriple (E.AAtom "__aliases__", E.AKeywords meta, E.AList (a:aliases))) =
-  withMeta meta (E.Alias (reify a, fmap raw aliases))
-reify (E.ATriple (E.AAtom "{}", E.AKeywords meta, E.AList exprs)) =
-  withMeta meta (E.Tuple $ reify <$> exprs)
-reify (E.ATriple (E.AAtom "%{}", E.AKeywords meta, E.AList [])) =
-  withMeta meta (E.Map [])
-reify (E.ATriple (E.AAtom "%{}", E.AKeywords meta, E.AKeywords kv)) =
-  withMeta meta (E.Map $ both reify <$> kv)
-reify (E.ATriple (E.AAtom "<<>>", E.AKeywords meta, E.AList exprs)) =
-  withMeta meta (E.Binary $ reify <$> exprs)
-reify (E.ATriple (E.AAtom "fn", E.AKeywords meta, E.AList exprs)) =
-  withMeta meta (E.Fn $ reify <$> exprs)
-reify (E.ATriple (E.ATriple (E.AAtom ".", E.AKeywords _, E.AList [lhs, E.AAtom rhs]), E.AKeywords meta, E.AList args)) =
-  withMeta meta (E.QualifiedCall (reify lhs) rhs (reify <$> args))
-reify (E.ATriple (E.ATriple (E.AAtom ".", E.AKeywords _, E.AList [expr]), E.AKeywords meta, E.AList args)) =
-  withMeta meta (E.AnonymousCall (reify expr) (reify <$> args))
-reify (E.ATriple (E.AAtom name, E.AKeywords meta, E.AList args)) =
-  withMeta meta (E.NonQualifiedCall name (reify <$> args))
-reify (E.ATriple (E.APair a, E.AKeywords meta, E.AList args)) =
+    (C.List $ (\(x, y) -> withMeta [] (C.Tuple [reify x, reify y])) <$> a)
+reify (A.String a) = withMeta [] (C.String a)
+reify (A.Pair (a, b)) = withMeta [] (C.Tuple [reify a, reify b])
+reify (A.Triple (A.Atom name, A.Keywords meta, A.Atom "Elixir")) =
+  withMeta meta (C.Variable name)
+reify (A.Triple (A.Atom name, A.Keywords meta, A.Atom "nil")) =
+  withMeta meta (C.Variable name)
+reify (A.Triple (A.Atom "__block__", A.Keywords meta, A.List exprs)) =
+  withMeta meta (C.Block $ C.BlockVal $ reify <$> exprs)
+reify (A.Triple (A.Atom "__aliases__", A.Keywords meta, A.List (a:aliases))) =
+  withMeta meta (C.Alias (reify a, fmap raw aliases))
+reify (A.Triple (A.Atom "{}", A.Keywords meta, A.List exprs)) =
+  withMeta meta (C.Tuple $ reify <$> exprs)
+reify (A.Triple (A.Atom "%{}", A.Keywords meta, A.List [])) =
+  withMeta meta (C.Map [])
+reify (A.Triple (A.Atom "%{}", A.Keywords meta, A.Keywords kv)) =
+  withMeta meta (C.Map $ both reify <$> kv)
+reify (A.Triple (A.Atom "<<>>", A.Keywords meta, A.List exprs)) =
+  withMeta meta (C.Binary $ reify <$> exprs)
+reify (A.Triple (A.Atom "fn", A.Keywords meta, A.List exprs)) =
+  withMeta meta (C.Fn $ reify <$> exprs)
+reify (A.Triple (A.Triple (A.Atom ".", A.Keywords _, A.List [lhs, A.Atom rhs]), A.Keywords meta, A.List args)) =
+  withMeta meta (C.QualifiedCall (reify lhs) rhs (reify <$> args))
+reify (A.Triple (A.Triple (A.Atom ".", A.Keywords _, A.List [expr]), A.Keywords meta, A.List args)) =
+  withMeta meta (C.AnonymousCall (reify expr) (reify <$> args))
+reify (A.Triple (A.Atom name, A.Keywords meta, A.List args)) =
+  withMeta meta (C.NonQualifiedCall name (reify <$> args))
+reify (A.Triple (A.Pair a, A.Keywords meta, A.List args)) =
   withMeta
     meta
-    (E.Tuple [reify $ E.APair a, withMeta [] (E.List $ reify <$> args)])
-reify (E.ATriple (E.ATriple a, E.AKeywords meta, E.AList args)) =
+    (C.Tuple [reify $ A.Pair a, withMeta [] (C.List $ reify <$> args)])
+reify (A.Triple (A.Triple a, A.Keywords meta, A.List args)) =
   withMeta
     meta
-    (E.Tuple [reify $ E.ATriple a, withMeta [] (E.List $ reify <$> args)])
-reify (E.ATriple (E.AAtom name, E.AKeywords meta, E.AKeywords args)) =
-  withMeta meta (E.NonQualifiedCall name (reifyTuple <$> args))
+    (C.Tuple [reify $ A.Triple a, withMeta [] (C.List $ reify <$> args)])
+reify (A.Triple (A.Atom name, A.Keywords meta, A.Keywords args)) =
+  withMeta meta (C.NonQualifiedCall name (reifyTuple <$> args))
 
---reify (E.ATriple (E.APair a, E.AKeywords meta, E.AKeywords args)) = E.Tuple [reify $ E.APair a, E.List $ reify <$> meta, E.List $ reify <$> args]
---reify (E.ATriple (E.ATriple a, E.AKeywords meta, E.AKeywords args)) = E.Tuple [reify $ E.ATriple a, E.List $ reify <$> meta, E.List $ reify <$> args]
-reifyTuple :: (E.AExpr, E.AExpr) -> E.WExpr
-reifyTuple (x, y) = withMeta [] (E.Tuple [reify x, reify y])
+--reify (A.Triple (A.Pair a, A.Keywords meta, A.Keywords args)) = C.Tuple [reify $ A.Pair a, C.List $ reify <$> meta, C.List $ reify <$> args]
+--reify (A.Triple (A.Triple a, A.Keywords meta, A.Keywords args)) = C.Tuple [reify $ A.Triple a, C.List $ reify <$> meta, C.List $ reify <$> args]
+reifyTuple :: (A.Expr, A.Expr) -> C.WExpr
+reifyTuple (x, y) = withMeta [] (C.Tuple [reify x, reify y])
 
-raw :: E.AExpr -> String
-raw (E.AAtom a) = a
+raw :: A.Expr -> String
+raw (A.Atom a) = a
 
 both :: (a -> b) -> (a, a) -> (b, b)
 both f (x, y) = (f x, f y)
 
-withMeta :: [(E.AExpr, E.AExpr)] -> E.EExpr -> E.WExpr
+withMeta :: [(A.Expr, A.Expr)] -> C.Expr -> C.WExpr
 withMeta m e = writer (e, metaOrEmpty m)
 
-metaOrEmpty :: [(E.AExpr, E.AExpr)] -> E.Meta
-metaOrEmpty ((E.AAtom "line", E.AInteger line):_) = E.Meta line
+metaOrEmpty :: [(A.Expr, A.Expr)] -> M.Meta
+metaOrEmpty ((A.Atom "line", A.Integer line):_) = M.Meta line
 metaOrEmpty (_:xs) = metaOrEmpty xs
-metaOrEmpty [] = E.Empty
+metaOrEmpty [] = M.Empty
 
-parseAST :: String -> Either P.ParseError E.AExpr
+parseAST :: String -> Either P.ParseError A.Expr
 parseAST = parse P.parser ""
 
 --
