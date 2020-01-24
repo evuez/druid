@@ -60,6 +60,7 @@ reify (A.Triple (A.Triple a, A.Keywords meta, A.List args)) =
     (C.Tuple [reify $ A.Triple a, withMeta [] (C.List $ reify <$> args)])
 reify (A.Triple (A.Atom name, A.Keywords meta, A.Keywords args)) =
   withMeta meta (C.NonQualifiedCall name (reifyTuple <$> args))
+reify x = error ("Invalid AST: " ++ show x)
 
 --reify (A.Triple (A.Pair a, A.Keywords meta, A.Keywords args)) = C.Tuple [reify $ A.Pair a, C.List $ reify <$> meta, C.List $ reify <$> args]
 --reify (A.Triple (A.Triple a, A.Keywords meta, A.Keywords args)) = C.Tuple [reify $ A.Triple a, C.List $ reify <$> meta, C.List $ reify <$> args]
@@ -68,6 +69,7 @@ reifyTuple (x, y) = withMeta [] (C.Tuple [reify x, reify y])
 
 raw :: A.Expr -> String
 raw (A.Atom a) = a
+raw x = error ("Not an atom: " ++ show x)
 
 both :: (a -> b) -> (a, a) -> (b, b)
 both f (x, y) = (f x, f y)
