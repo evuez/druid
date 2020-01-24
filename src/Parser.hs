@@ -141,7 +141,8 @@ unquotedAtom =
    (C.string "!") <|>
    unquotedAtomBody) <|>
   (C.string "Access") <|>
-  (C.string "Elixir")
+  (C.string "Elixir") <|>
+  (C.string "Kernel")
 
 quotedAtomBody :: Parser String
 quotedAtomBody = charlist <|> string
@@ -215,7 +216,7 @@ parseAny =
   (parseString <?> "string") <|>
   (parseCharlist <?> "charlist") <|>
   (parseList <?> "list") <|>
-  (try parseTriple <?> "tripe") <|>
+  (try parseTriple <?> "triple") <|>
   (parsePair <?> "pair")
 
 parser :: Parser A.Expr

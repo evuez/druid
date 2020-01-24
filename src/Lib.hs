@@ -5,9 +5,9 @@ module Lib
   ) where
 
 import Control.Monad.Writer (writer)
-import qualified Meta as M (Meta(..))
-import qualified Expr.Concrete as C (Expr(..), WExpr, BlockVal(..))
 import qualified Expr.AST as A (Expr(..))
+import qualified Expr.Concrete as C (BlockVal(..), Expr(..), WExpr)
+import qualified Meta as M (Meta(..))
 import qualified Parser as P (ParseError, parser)
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (errorBundlePretty)

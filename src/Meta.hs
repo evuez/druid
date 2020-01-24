@@ -1,4 +1,6 @@
-module Meta (Meta(..)) where
+module Meta
+  ( Meta(..)
+  ) where
 
 data Meta
   = Meta { line :: Integer }

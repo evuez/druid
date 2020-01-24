@@ -1,7 +1,7 @@
 import Control.Monad.Writer (runWriter, writer)
-import qualified Meta as M (Meta(..))
-import qualified Expr.Concrete as C (Expr(..), WExpr, BlockVal(..))
+import qualified Expr.Concrete as C (BlockVal(..), Expr(..), WExpr)
 import Lib (parseAST, reify)
+import qualified Meta as M (Meta(..))
 import qualified Parser as P (ParseError, parser)
 import Test.Hspec
 import Test.Hspec.Megaparsec (shouldFailOn, shouldParse, shouldSucceedOn)
@@ -67,7 +67,9 @@ main =
              ])
       it "parses a block" $
         parseAndReify "{:__block__, [], [1, 2, 3]}" `shouldBe`
-        Right (C.Block $ C.BlockVal [w (C.Integer 1), w (C.Integer 2), w (C.Integer 3)])
+        Right
+          (C.Block $
+           C.BlockVal [w (C.Integer 1), w (C.Integer 2), w (C.Integer 3)])
       it "parses a case" $
         parseAndReify
           "{:case, [], [1, [do: [{:->, [], [[2], 3]}, {:->, [], [[4], 5]}]]]}" `shouldBe`

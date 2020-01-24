@@ -1,9 +1,7 @@
 module Expr.Concrete where
 
 import Meta (Meta)
-import Control.Monad.Writer (Writer, tell)
-import Data.List (intercalate)
-import Data.Typeable (Typeable)
+import Control.Monad.Writer (Writer)
 
 type WExpr = Writer Meta Expr
 
