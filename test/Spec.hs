@@ -1,6 +1,6 @@
 import Control.Monad.Writer (runWriter, writer)
 import qualified Expr.AST as A (reify)
-import qualified Expr.Base as B (BlockVal(..), Expr(..), WExpr)
+import qualified Expr.Base as B (BlockVal(..), Expr(..), ExprW)
 import Lib (parseAST)
 import qualified Meta as M (Meta(..))
 import qualified Parser as P (ParseError)
@@ -144,11 +144,11 @@ main =
 parseAndReify :: String -> Either P.ParseError B.Expr
 parseAndReify a = fst . runWriter <$> (fmap A.reify $ parseAST a)
 
-wParseAndReify :: String -> Either P.ParseError B.WExpr
+wParseAndReify :: String -> Either P.ParseError B.ExprW
 wParseAndReify a = fmap A.reify $ parseAST a
 
-w :: B.Expr -> B.WExpr
+w :: B.Expr -> B.ExprW
 w e = writer (e, M.Empty)
 
-w' :: B.Expr -> M.Meta -> B.WExpr
+w' :: B.Expr -> M.Meta -> B.ExprW
 w' e m = writer (e, m)

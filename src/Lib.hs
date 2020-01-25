@@ -5,7 +5,7 @@ module Lib
   ) where
 
 import qualified Expr.AST as A (Expr(..), reify)
-import qualified Expr.Base as B (WExpr)
+import qualified Expr.Base as B (ExprW)
 import qualified Parser as P (ParseError, parser)
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (errorBundlePretty)
@@ -13,7 +13,7 @@ import Text.Megaparsec.Error (errorBundlePretty)
 parseAST :: String -> Either P.ParseError A.Expr
 parseAST = parse P.parser ""
 
-decode :: String -> Either P.ParseError B.WExpr
+decode :: String -> Either P.ParseError B.ExprW
 decode s = fmap A.reify (parse P.parser "" s)
 
 --

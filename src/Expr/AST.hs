@@ -3,7 +3,7 @@ module Expr.AST (Expr(..), reify) where
 import Control.Monad.Writer (writer)
 import Data.List (intercalate)
 import qualified Meta as M (Meta(..))
-import qualified Expr.Base as B (BlockVal(..), Expr(..), WExpr)
+import qualified Expr.Base as B (BlockVal(..), Expr(..), ExprW)
 import Utils (both)
 
 data Expr
@@ -35,7 +35,7 @@ showExpr (String a) = a
 showExpr (Charlist a) = a
 
 
-reify :: Expr -> B.WExpr
+reify :: Expr -> B.ExprW
 reify (Atom a) = withMeta [] (B.Atom a)
 reify (Float a) = withMeta [] (B.Float a)
 reify (Integer a) = withMeta [] (B.Integer a)
@@ -84,14 +84,14 @@ reify x = error ("Invalid AST: " ++ show x)
 
 --reify (Triple (Pair a, Keywords meta, Keywords args)) = B.Tuple [reify $ Pair a, B.List $ reify <$> meta, B.List $ reify <$> args]
 --reify (Triple (Triple a, Keywords meta, Keywords args)) = B.Tuple [reify $ Triple a, B.List $ reify <$> meta, B.List $ reify <$> args]
-reifyTuple :: (Expr, Expr) -> B.WExpr
+reifyTuple :: (Expr, Expr) -> B.ExprW
 reifyTuple (x, y) = withMeta [] (B.Tuple [reify x, reify y])
 
 raw :: Expr -> String
 raw (Atom a) = a
 raw x = error ("Not an atom: " ++ show x)
 
-withMeta :: [(Expr, Expr)] -> B.Expr -> B.WExpr
+withMeta :: [(Expr, Expr)] -> B.Expr -> B.ExprW
 withMeta m e = writer (e, metaOrEmpty m)
 
 metaOrEmpty :: [(Expr, Expr)] -> M.Meta

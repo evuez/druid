@@ -1,53 +1,52 @@
-module Expr.Concrete (BlockVal(BlockVal), Expr(..), WExpr) where
+module Expr.Concrete (BlockVal(BlockVal), Expr(..), ExprW) where
 
-import Meta (Meta)
-import Control.Monad.Writer (Writer)
+import Meta (MetaW)
 
-type WExpr = Writer Meta Expr
+type ExprW = MetaW Expr
 
-newtype BlockVal = BlockVal [WExpr] deriving (Show, Eq)
+newtype BlockVal = BlockVal [ExprW] deriving (Show, Eq)
 
 data Expr
   = Atom String
-  | Alias (WExpr, [String])
-  | Binary [WExpr]
+  | Alias (ExprW, [String])
+  | Binary [ExprW]
 --  | BinaryOp Operator
---             WExpr
---             WExpr
+--             ExprW
+--             ExprW
   | Block BlockVal
   | Charlist String
   | Float Float
-  | Fn [WExpr]
+  | Fn [ExprW]
   | Integer Integer
-  | List [WExpr]
-  | Map [(WExpr, WExpr)]
-  | MapUpdate { expr :: WExpr
-              , updates :: [(WExpr, WExpr)] }
+  | List [ExprW]
+  | Map [(ExprW, ExprW)]
+  | MapUpdate { expr :: ExprW
+              , updates :: [(ExprW, ExprW)] }
   | NonQualifiedCall { name :: String
-                     , args :: [WExpr] }
-  | QualifiedCall { expr :: WExpr
+                     , args :: [ExprW] }
+  | QualifiedCall { expr :: ExprW
                   , name :: String
-                  , args :: [WExpr] }
-  | AnonymousCall { expr :: WExpr
-                  , args :: [WExpr] }
+                  , args :: [ExprW] }
+  | AnonymousCall { expr :: ExprW
+                  , args :: [ExprW] }
   | Sigil { ident :: Char
           , contents :: String
           , modifiers :: [Char] }
   | String String
-  | Struct { alias :: WExpr
-           , map :: [(WExpr, WExpr)] }
-  | StructUpdate { alias :: WExpr
-                 , expr :: WExpr
-                 , updates :: [(WExpr, WExpr)] }
-  | Tuple [WExpr]
+  | Struct { alias :: ExprW
+           , map :: [(ExprW, ExprW)] }
+  | StructUpdate { alias :: ExprW
+                 , expr :: ExprW
+                 , updates :: [(ExprW, ExprW)] }
+  | Tuple [ExprW]
 --  | UnaryOp Operator
---            WExpr
+--            ExprW
   | Variable String
-  | Module { alias :: WExpr, body :: BlockVal }
-  | Def { name :: String, args :: [WExpr], body :: BlockVal }
-  | DefP { name :: String, args :: [WExpr], body :: BlockVal }
-  | DefMacro { name :: String, args :: [WExpr], body :: BlockVal }
-  | Attribute { name :: String, expr :: WExpr }
-  | Import { alias :: WExpr, opts :: [WExpr] }
-  | Use { alias :: WExpr, opts :: [WExpr] }
-  | Require { alias :: WExpr, opts :: [WExpr] } deriving (Show, Eq)
+  | Module { alias :: ExprW, body :: BlockVal }
+  | Def { name :: String, args :: [ExprW], body :: BlockVal }
+  | DefP { name :: String, args :: [ExprW], body :: BlockVal }
+  | DefMacro { name :: String, args :: [ExprW], body :: BlockVal }
+  | Attribute { name :: String, expr :: ExprW }
+  | Import { alias :: ExprW, opts :: [ExprW] }
+  | Use { alias :: ExprW, opts :: [ExprW] }
+  | Require { alias :: ExprW, opts :: [ExprW] } deriving (Show, Eq)
