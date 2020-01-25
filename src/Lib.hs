@@ -5,8 +5,7 @@ module Lib
   ) where
 
 import qualified Expr.AST as A (Expr(..), reify)
-import qualified Expr.Base as B (BlockVal(..), Expr(..), WExpr)
-import qualified Meta as M (Meta(..))
+import qualified Expr.Base as B (WExpr)
 import qualified Parser as P (ParseError, parser)
 import Text.Megaparsec (parse)
 import Text.Megaparsec.Error (errorBundlePretty)

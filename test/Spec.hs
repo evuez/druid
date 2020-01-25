@@ -1,6 +1,7 @@
 import Control.Monad.Writer (runWriter, writer)
+import qualified Expr.AST as A (reify)
 import qualified Expr.Base as B (BlockVal(..), Expr(..), WExpr)
-import Lib (parseAST, reify)
+import Lib (parseAST)
 import qualified Meta as M (Meta(..))
 import qualified Parser as P (ParseError)
 import Test.Hspec
@@ -138,13 +139,13 @@ main =
       it
         "parses a non qualified function call with no args and saves the metadata" $
         wParseAndReify "{:sum, [line: 15], []}" `shouldBe`
-        (Right $ w' (B.NonQualifiedCall "sum" []) (M.Meta 15))
+        (Right $ w' (B.NonQualifiedCall "sum" []) (M.Meta 15 []))
 
 parseAndReify :: String -> Either P.ParseError B.Expr
-parseAndReify a = fst . runWriter <$> (fmap reify $ parseAST a)
+parseAndReify a = fst . runWriter <$> (fmap A.reify $ parseAST a)
 
 wParseAndReify :: String -> Either P.ParseError B.WExpr
-wParseAndReify a = fmap reify $ parseAST a
+wParseAndReify a = fmap A.reify $ parseAST a
 
 w :: B.Expr -> B.WExpr
 w e = writer (e, M.Empty)
