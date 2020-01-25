@@ -3,7 +3,8 @@ module Meta
   ) where
 
 data Meta
-  = Meta { line :: Integer }
+  = Meta { line :: Integer
+         , errors :: [String] }
   | Empty
   deriving (Show, Eq)
 

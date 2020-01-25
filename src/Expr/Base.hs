@@ -1,4 +1,4 @@
-module Expr.Concrete (BlockVal(BlockVal), Expr(..), WExpr) where
+module Expr.Base (BlockVal(BlockVal), Expr(..), WExpr) where
 
 import Meta (Meta)
 import Control.Monad.Writer (Writer)
@@ -42,12 +42,4 @@ data Expr
   | Tuple [WExpr]
 --  | UnaryOp Operator
 --            WExpr
-  | Variable String
-  | Module { alias :: WExpr, body :: BlockVal }
-  | Def { name :: String, args :: [WExpr], body :: BlockVal }
-  | DefP { name :: String, args :: [WExpr], body :: BlockVal }
-  | DefMacro { name :: String, args :: [WExpr], body :: BlockVal }
-  | Attribute { name :: String, expr :: WExpr }
-  | Import { alias :: WExpr, opts :: [WExpr] }
-  | Use { alias :: WExpr, opts :: [WExpr] }
-  | Require { alias :: WExpr, opts :: [WExpr] } deriving (Show, Eq)
+  | Variable String deriving (Show, Eq)
