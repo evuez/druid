@@ -249,6 +249,11 @@ main =
         "parses a non qualified function call with no args and saves the metadata" $
         wParseAndReify "{:sum, [line: 15], []}" `shouldBe`
         (Right $ w' (B.NonQualifiedCall "sum" []) (M.Meta 15 []))
+    describe "reifying to concrete" $ do
+      it "knows about modules" $
+        parseAndReify2
+          "{:defmodule, [], [{:__aliases__, [], [:Foo]}, [do: {:__block__, [], []}]]}" `shouldBe`
+        Right (C.Module (w (C.Alias (w (C.Atom "Foo"), []))) (C.BlockVal []))
 
 parseAndReify :: String -> Either P.ParseError B.Expr
 parseAndReify a = fst . runWriter <$> (A.reify <$> parseAST a)
