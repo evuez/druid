@@ -1,10 +1,9 @@
-module Expr.Base (BlockVal(BlockVal), Expr(..), ExprW) where
+module Expr.Base (BlockVal(BlockVal), Expr(..), ExprW, reify) where
 
-import Meta (MetaW, Meta(..))
+import Meta (MetaW)
 import Utils (both)
 import qualified Expr.Concrete as C (Expr(..), ExprW, BlockVal(..))
-import Data.Bifunctor (second)
-import Control.Monad.Writer (Writer, writer, runWriter)
+import Control.Monad.Writer (runWriter)
 
 type ExprW = MetaW Expr
 
@@ -47,21 +46,31 @@ data Expr
 --            ExprW
   | Variable String deriving (Show, Eq)
 
-reify :: Expr -> C.Expr
-reify (Atom a) = (C.Atom a)
-reify (Alias (a, b)) = (C.Alias (run a, b))
-reify (Binary a) = (C.Binary $ run <$> a)
--- Block
-reify (Charlist a) = C.Charlist a
-reify (Float a) = C.Float a
-reify (Fn a) = C.Fn $ run <$> a -- NOTE: Shouldn't that only be in Concrete?
-reify (Integer a) = C.Integer a
-reify (List a) = C.List $ run <$> a
-reify (Map a) = C.Map $ both run <$> a
-reify (MapUpdate a b) = C.MapUpdate (run a) (both run <$> b)
-reify (NonQualifiedCall "defmodule" (x@(Alias _):xs)) = C.Module (run x) (C.BlockVal $ run <$> xs)
+reify :: ExprW -> C.ExprW
+reify exprAndMeta = fmap doReify exprAndMeta
 
-run :: ExprW -> C.ExprW
-run exprAndMeta = do
-  let (e, m) = runWriter exprAndMeta
-  writer (reify e, m)
+doReify :: Expr -> C.Expr
+doReify (Atom a) = (C.Atom a)
+doReify (Alias (a, b)) = (C.Alias (reify a, b))
+doReify (Binary a) = (C.Binary $ reify <$> a)
+doReify (Block (BlockVal a)) = C.Block (C.BlockVal $ reify <$> a)
+doReify (Charlist a) = C.Charlist a
+doReify (Float a) = C.Float a
+doReify (Fn a) = C.Fn $ reify <$> a -- NOTE: Shouldn't that only be in Concrete?
+doReify (Integer a) = C.Integer a
+doReify (List a) = C.List $ reify <$> a
+doReify (Map a) = C.Map $ both reify <$> a
+doReify (MapUpdate a b) = C.MapUpdate (reify a) (both reify <$> b)
+doReify (NonQualifiedCall "defmodule" (x:xs)) =
+  case runWriter x of
+    ((Alias _), _) -> C.Module (reify x) (C.BlockVal $ reify <$> xs)
+    _ -> error "Invalid module definition." -- NonQualifiedCall "defmodule" ... + errors ["Invalid module def"]?
+doReify (NonQualifiedCall a b) = C.NonQualifiedCall a (reify <$> b)
+doReify (QualifiedCall a b c) = C.QualifiedCall (reify a) b (reify <$> c)
+doReify (AnonymousCall a b) = C.AnonymousCall (reify a) (reify <$> b)
+doReify (Sigil a b c) = C.Sigil a b c
+doReify (String a) = C.String a
+doReify (Struct a b) = C.Struct (reify a) (both reify <$> b)
+doReify (StructUpdate a b c) = C.StructUpdate (reify a) (reify b) (both reify <$> c)
+doReify (Tuple a) = C.Tuple (reify <$> a)
+doReify (Variable a) = C.Variable a
