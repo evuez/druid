@@ -13,9 +13,3 @@ I'm using [hindent](https://github.com/chrisdone/hindent) to format the source f
 ## Tests
 
 Run the tests with `make test` or `make test.watch` to automatically run the tests when a file changes.
-
-## TODO
-
- - [ ] `?` syntax for codepoints
- - [ ] String interpolation
- - [ ] Allow `_` in numbers
