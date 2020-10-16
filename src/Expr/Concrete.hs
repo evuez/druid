@@ -1,4 +1,4 @@
-module Expr.Concrete (BlockVal(BlockVal), Expr(..), ExprW) where
+module Expr.Concrete (BlockVal(BlockVal), Expr(..), ExprW, Operator(..), InnerClause(..)) where
 
 import Meta (MetaW)
 
@@ -10,9 +10,9 @@ data Expr
   = Atom String
   | Alias (ExprW, [String])
   | Binary [ExprW]
---  | BinaryOp Operator
---             ExprW
---             ExprW
+  | BinaryOp Operator
+             ExprW
+             ExprW
   | Block BlockVal
   | Charlist String
   | Float Float
@@ -42,11 +42,74 @@ data Expr
 --  | UnaryOp Operator
 --            ExprW
   | Variable String
-  | Module { alias :: ExprW, body :: BlockVal }
-  | Def { name :: String, args :: [ExprW], body :: BlockVal }
-  | DefP { name :: String, args :: [ExprW], body :: BlockVal }
-  | DefMacro { name :: String, args :: [ExprW], body :: BlockVal }
+  | Module { alias :: ExprW, body :: [InnerClause] }
+  | Def { name :: String, args :: [ExprW], body :: [InnerClause] }
+  | DefP { name :: String, args :: [ExprW], body :: [InnerClause] }
+  | DefMacro { name :: String, args :: [ExprW], body :: [InnerClause] }
   | Attribute { name :: String, expr :: ExprW }
   | Import { alias :: ExprW, opts :: [ExprW] }
   | Use { alias :: ExprW, opts :: [ExprW] }
-  | Require { alias :: ExprW, opts :: [ExprW] } deriving (Show, Eq)
+  | Require { alias :: ExprW, opts :: [ExprW] }
+  deriving (Show, Eq)
+
+data InnerClause
+  = Do BlockVal
+  | Else BlockVal
+  | Rescue BlockVal
+  | Catch BlockVal
+  | After BlockVal
+  deriving (Show, Eq)
+
+data Operator
+  = And
+  | Application
+  | Assignment
+--  | Attribute
+  | Bang
+  | BitwiseAnd
+  | BitwiseNot
+  | BitwiseOr
+  | BitwiseXor
+  | BooleanAnd
+  | BooleanOr
+  | Capture
+  | ChevronPipeChevron
+  | ChevronTilde
+  | ChevronTildeChevron
+  | Concat
+  | DefaultArg
+  | Difference
+  | Division
+  | DoubleChevronTilde
+  | Equal
+  | GreaterThan
+  | GreaterThanOrEqual
+  | Id
+  | In
+  | LeftArrow
+  | LessThan
+  | LessThanOrEqual
+  | Negation
+  | Not
+  | NotEqual
+  | NotIn
+  | Or
+  | Pin
+  | Pipe
+  | PipeRight
+  | Product
+  | Range
+  | RegexEqual
+  | RightArrow
+  | ShiftLeft
+  | ShiftRight
+  | SpecType
+  | StrictEqual
+  | StrictNotEqual
+  | StringConcat
+  | Subtraction
+  | Sum
+  | TildeChevron
+  | TildeDoubleChevron
+  | When
+  deriving (Show, Eq)

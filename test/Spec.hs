@@ -1,7 +1,7 @@
 import Control.Monad.Writer (runWriter, writer)
 import qualified Expr.AST as A (reify)
 import qualified Expr.Base as B (BlockVal(..), Expr(..), ExprW, reify)
-import qualified Expr.Concrete as C (BlockVal(..), Expr(..))
+import qualified Expr.Concrete as C (BlockVal(..), Expr(..), Operator(..), InnerClause(..))
 import Lib (parseAST)
 import qualified Meta as M (Meta(..), MetaW)
 import qualified Parser as P (ParseError)
@@ -20,7 +20,7 @@ main =
         parseAndReify "{:+, [], [1, 2]}" `shouldBe`
           Right (B.NonQualifiedCall "+" [w (B.Integer 1), w (B.Integer 2)])
         parseAndReify2 "{:+, [], [1, 2]}" `shouldBe`
-          Right (C.NonQualifiedCall "+" [w (C.Integer 1), w (C.Integer 2)])
+          Right (C.BinaryOp C.Sum (w (C.Integer 1)) (w (C.Integer 2)))
       it "parses a variable" $ do
         parseAndReify "{:sum, [], Elixir}" `shouldBe` Right (B.Variable "sum")
         parseAndReify2 "{:sum, [], Elixir}" `shouldBe` Right (C.Variable "sum")
@@ -251,9 +251,8 @@ main =
         (Right $ w' (B.NonQualifiedCall "sum" []) (M.Meta 15 []))
     describe "reifying to concrete" $ do
       it "knows about modules" $
-        parseAndReify2
-          "{:defmodule, [], [{:__aliases__, [], [:Foo]}, [do: {:__block__, [], []}]]}" `shouldBe`
-        Right (C.Module (w (C.Alias (w (C.Atom "Foo"), []))) (C.BlockVal []))
+        parseAndReify2 "{:defmodule, [], [{:__aliases__, [], [:Foo]}, [do: {:__block__, [], []}]]}" `shouldBe`
+          Right (C.Module (w (C.Alias (w (C.Atom "Foo"), []))) [C.Do $ C.BlockVal []])
 
 parseAndReify :: String -> Either P.ParseError B.Expr
 parseAndReify a = fst . runWriter <$> (A.reify <$> parseAST a)
